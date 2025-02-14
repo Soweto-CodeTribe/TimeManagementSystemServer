@@ -1,4 +1,5 @@
-console.log("object")
+import jwt from "jsonwebtoken";
+import secreteKey from "../config/jwtConfig.js";
 
 const generateToken = (id) => {
   return jwt.sign({ id: id }, secreteKey, { expiresIn: "1h" });
@@ -20,7 +21,5 @@ export const verifyToken = async (req, res, next) => {
     }
   }
 };
-
-
 
 export default generateToken;
