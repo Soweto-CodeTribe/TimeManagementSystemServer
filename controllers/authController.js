@@ -14,7 +14,11 @@ export const login = async (req, res) => {
 
     const token = generateToken(userCredential.user.uid);
     console.log("token", token);
-    res.status(200).json({ token: token, user: userCredential.user.email });
+
+    const firebase_tokens = await userCredential.user.getIdToken();
+    console.log("firebase token", firebase_tokens);
+
+    res.status(200).json({ token: token, firebase_tokens: firebase_tokens,  user: userCredential.user.email });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
