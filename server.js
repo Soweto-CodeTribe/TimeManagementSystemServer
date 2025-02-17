@@ -4,8 +4,7 @@ import "dotenv/config";
 import admin from "firebase-admin";
 import serviceAccount from "./config/serviceAccountKey.json" assert { type: "json" };
 
-import authRoutes from "./routes/index.js"
-import authCheck from "./routes/authCheck.js"
+
 import facilitatorRoutes from './routes/facilitatoRoutes.js';
 
 // import admin from "firebase-admin";
