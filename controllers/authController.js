@@ -12,7 +12,7 @@ export const login = async (req, res) => {
     const userCredential = await signInWithEmailAndPassword(
       auth,
       email,
-      password
+      password,
     );
 
     const token = generateToken(userCredential.user.uid);
