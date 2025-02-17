@@ -1,6 +1,5 @@
 import crypto from "crypto";
 
-// const secreteKey = crypto.randomBytes(32).toString("hex");
-const secreteKey = process.env.JWT_SECRET
+const secreteKey = crypto.randomBytes(32).toString("hex");
 
 export default secreteKey;
