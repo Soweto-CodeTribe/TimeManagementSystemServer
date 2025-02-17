@@ -6,6 +6,7 @@ import "dotenv/config";
 import authRoutes from "./routes/index.js"
 import authCheck from "./routes/authCheck.js"
 import meetingRoutes from "./routes/meetingRoutes.js"
+import sessionRoutes from "./routes/sessionRoutes.js"
  
 const PORT = process.env.PORT;
 const app = express();
@@ -20,6 +21,8 @@ app.use(express.json());
 app.use("/api/auth/", authRoutes);
 app.use("/api/", authCheck);
 app.use("/api/", meetingRoutes);
+app.use("/api/session", sessionRoutes);
+
 
 app.all("*", (req, res) => res.send("error 404 page not found"));
 
