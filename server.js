@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import "dotenv/config";
 import admin from "firebase-admin";
-import serviceAccount from "./config/serviceAccountKey.json" assert { type: "json" };
+// import serviceAccount from "./config/serviceAccountKey.json" assert { type: "json" };
 
 
 import facilitatorRoutes from './routes/facilitatoRoutes.js';
@@ -13,15 +13,17 @@ import authRoutes from "./routes/index.js"
 import authCheck from "./routes/authCheck.js"
 import meetingRoutes from "./routes/meetingRoutes.js"
 import sessionRoutes from "./routes/sessionRoutes.js"
+import messageRoutes from "./routes/notificationRoutes.js"
+import geofencingRoutes from "./routes/geofencingRoutes.js";
 
  
 const PORT = process.env.PORT;
 const app = express();
 
 
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-});
+// admin.initializeApp({
+//   credential: admin.credential.cert(serviceAccount),
+// });
 
 
 // admin.initializeApp({
@@ -38,6 +40,8 @@ app.use('/api/facilitators', facilitatorRoutes);
 app.use("/api/", authCheck);
 app.use("/api/", meetingRoutes);
 app.use("/api/session", sessionRoutes);
+app.use("/api/", messageRoutes)
+app.use("/api/", geofencingRoutes);
 
 
 
