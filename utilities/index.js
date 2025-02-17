@@ -7,6 +7,9 @@ const generateToken = (id) => {
 
 export const verifyToken = async (req, res, next) => {
   let token;
+  if (!token) {
+    return res.status(401).json({ message: 'No token provided' });
+  }
   if (
     req.headers.authorization &&
     req.headers.authorization.startsWith("Bearer")
