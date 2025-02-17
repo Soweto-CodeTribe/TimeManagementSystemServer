@@ -1,8 +1,4 @@
 {
-<<<<<<< HEAD
-  "dependencies": {
-    "init": "^0.1.2"
-=======
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
@@ -18,7 +14,7 @@
     "firebase-admin": "^13.1.0",
     "init": "^0.1.2",
     "jsonwebtoken": "^9.0.2",
-    "nodemon": "^3.1.9"
->>>>>>> 25aa7d4 (initialize project structure with basic authentication and middleware setup)
+    "mongoose": "^8.10.1",
+    "nodemon": "^3.1.9",
   }
 }
