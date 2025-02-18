@@ -13,6 +13,6 @@ router.delete("/trainees/:id",verifyToken, delete_User);
 router.get("/deletedTrainees",verifyToken, deleted_Users);
 // Routes to fetch trainee info and edit
 router.get("/trainee", verifyToken, trainee_id)
-router.post("/update", verifyToken, update_Trainee)
+router.post("/trainee/update", verifyToken, update_Trainee)
 
 export default router;

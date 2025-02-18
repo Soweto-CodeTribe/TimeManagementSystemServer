@@ -30,19 +30,19 @@ export const trainee_id = async (req, res) => {
     // }
 
     // Get logged-in trainee's data
-    // const traineeData = {
-    // //   id: traineeDoc.id,
-    // //   id: traineeDoc.name,
-    // //   id: traineeDoc.surname,
+    const traineeData = {
+      id: traineeDoc.id,
+    //   id: traineeDoc.name,
+    //   id: traineeDoc.surname,
     //   id: traineeDoc.email,
-    // //   id: traineeDoc.phoneNumber,
-    // //   id: traineeDoc.age,
-    // //   id: traineeDoc.gender,
-    //   ...traineeDoc.data(),
-    // };
+    //   id: traineeDoc.phoneNumber,
+    //   id: traineeDoc.age,
+    //   id: traineeDoc.gender,
+      ...traineeDoc.data(),
+    };
     const trainee_details = traineeDoc.data()
 
-    res.status(200).json(trainee_details);
+    res.status(200).json(traineeData);
     console.log("Success fetching trainee data")
   } catch (error) {
     console.error("Error fetching trainee:", error);
