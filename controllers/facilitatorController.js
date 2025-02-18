@@ -1,4 +1,6 @@
-import admin from 'firebase-admin';
+import { auth, db, serverTimestamp } from '../config/firebaseConfig.js';
+import { createUserWithEmailAndPassword, deleteUser, updatePassword } from 'firebase/auth';
+import { collection, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, query, where } from 'firebase/firestore';
 import crypto from 'crypto';
 
 // Reference to Firestore collection
@@ -12,40 +14,32 @@ const generatePassword = (length = 12) => {
 // Creates a new facilitator in both Firebase Auth and Firestore
 export const createFacilitator = async (req, res) => {
     try {
-        const db = admin.firestore();
-        // Generate a secure password
         const generatedPassword = generatePassword();
 
         // Create user in Firebase Auth
-        const userRecord = await admin.auth().createUser({
-            email: req.body.email,
-            password: generatedPassword,
-            displayName: req.body.name
-        });
+        const userCredential = await createUserWithEmailAndPassword(auth, req.body.email, generatedPassword);
+        const user = userCredential.user;
 
         // Create facilitator in Firestore - without storing the password
         const facilitatorData = {
-            uid: userRecord.uid,
+            uid: user.uid,
             surname: req.body.surname,
             name: req.body.name,
             email: req.body.email,
             location: req.body.location,
             role: req.body.role || 'facilitator',
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
         };
 
-        await db.collection(facilitatorsCollection).doc(userRecord.uid).set(facilitatorData);
+        await setDoc(doc(db, facilitatorsCollection, user.uid), facilitatorData);
         
-        // Only send the temporary password in the initial response
-        // The user should be required to change this password on first login
         const responseData = {
             ...facilitatorData,
             temporaryPassword: generatedPassword,
             message: 'Please change this temporary password immediately upon first login'
         };
 
-        // Log creation without the password
         console.log(`Created facilitator account for ${req.body.email}`);
         
         res.status(201).json(responseData);
@@ -58,8 +52,7 @@ export const createFacilitator = async (req, res) => {
 // Retrieves all facilitators from Firestore
 export const getAllFacilitators = async (req, res) => {
     try {
-        const db = admin.firestore();
-        const facilitatorsSnapshot = await db.collection(facilitatorsCollection).get();
+        const facilitatorsSnapshot = await getDocs(collection(db, facilitatorsCollection));
         const facilitators = facilitatorsSnapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
@@ -74,10 +67,9 @@ export const getAllFacilitators = async (req, res) => {
 // Retrieves a single facilitator by their UID
 export const getFacilitator = async (req, res) => {
     try {
-        const db = admin.firestore();
-        const facilitatorDoc = await db.collection(facilitatorsCollection).doc(req.params.id).get();
+        const facilitatorDoc = await getDoc(doc(db, facilitatorsCollection, req.params.id));
         
-        if (!facilitatorDoc.exists) {
+        if (!facilitatorDoc.exists()) {
             return res.status(404).json({ error: 'Facilitator not found' });
         }
         
@@ -94,10 +86,9 @@ export const getFacilitator = async (req, res) => {
 // Updates a facilitator's information
 export const updateFacilitator = async (req, res) => {
     try {
-        const db = admin.firestore();
-        const facilitatorDoc = await db.collection(facilitatorsCollection).doc(req.params.id).get();
+        const facilitatorDoc = await getDoc(doc(db, facilitatorsCollection, req.params.id));
         
-        if (!facilitatorDoc.exists) {
+        if (!facilitatorDoc.exists()) {
             return res.status(404).json({ error: 'Facilitator not found' });
         }
 
@@ -105,23 +96,25 @@ export const updateFacilitator = async (req, res) => {
 
         // Check if user is updating their own profile or is a super admin
         if (facilitatorData.uid !== req.user.uid) {
-            const requesterDoc = await db.collection(facilitatorsCollection)
-                .where('uid', '==', req.user.uid)
-                .get();
+            const requesterQuery = query(
+                collection(db, facilitatorsCollection),
+                where('uid', '==', req.user.uid)
+            );
+            const requesterSnapshot = await getDocs(requesterQuery);
             
-            if (!requesterDoc.empty && requesterDoc.docs[0].data().role !== 'super_admin') {
+            if (!requesterSnapshot.empty && requesterSnapshot.docs[0].data().role !== 'super_admin') {
                 return res.status(403).json({ error: 'Unauthorized to edit this profile' });
             }
         }
 
         const updateData = {
             ...req.body,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            updatedAt: serverTimestamp()
         };
 
-        await db.collection(facilitatorsCollection).doc(req.params.id).update(updateData);
+        await updateDoc(doc(db, facilitatorsCollection, req.params.id), updateData);
         
-        const updatedDoc = await db.collection(facilitatorsCollection).doc(req.params.id).get();
+        const updatedDoc = await getDoc(doc(db, facilitatorsCollection, req.params.id));
         res.json({
             id: updatedDoc.id,
             ...updatedDoc.data()
@@ -135,20 +128,22 @@ export const updateFacilitator = async (req, res) => {
 // Deletes a facilitator from both Firebase Auth and Firestore
 export const deleteFacilitator = async (req, res) => {
     try {
-        const db = admin.firestore();
-        const facilitatorDoc = await db.collection(facilitatorsCollection).doc(req.params.id).get();
+        const facilitatorDoc = await getDoc(doc(db, facilitatorsCollection, req.params.id));
         
-        if (!facilitatorDoc.exists) {
+        if (!facilitatorDoc.exists()) {
             return res.status(404).json({ error: 'Facilitator not found' });
         }
 
         const facilitatorData = facilitatorDoc.data();
 
         // Delete from Firebase Auth
-        await admin.auth().deleteUser(facilitatorData.uid);
+        const user = auth.currentUser;
+        if (user) {
+            await deleteUser(user);
+        }
         
         // Delete from Firestore
-        await db.collection(facilitatorsCollection).doc(req.params.id).delete();
+        await deleteDoc(doc(db, facilitatorsCollection, req.params.id));
         
         res.json({ message: 'Facilitator deleted successfully' });
     } catch (error) {
@@ -160,20 +155,25 @@ export const deleteFacilitator = async (req, res) => {
 export const changePassword = async (req, res) => {
     try {
         const { newPassword } = req.body;
-        const userUid = req.user.uid;
+        const user = auth.currentUser;
+
+        if (!user) {
+            return res.status(401).json({ error: 'User not authenticated' });
+        }
 
         // Check if facilitator exists in Firestore
-        const db = admin.firestore();
-        const facilitatorDoc = await db.collection(facilitatorsCollection)
-            .where('uid', '==', userUid)
-            .get();
+        const facilitatorQuery = query(
+            collection(db, facilitatorsCollection),
+            where('uid', '==', user.uid)
+        );
+        const facilitatorSnapshot = await getDocs(facilitatorQuery);
 
-        if (facilitatorDoc.empty) {
+        if (facilitatorSnapshot.empty) {
             return res.status(404).json({ error: 'Facilitator not found' });
         }
 
         // Update password in Firebase Auth
-        await admin.auth().updateUser(userUid, { password: newPassword });
+        await updatePassword(user, newPassword);
 
         res.status(200).json({ message: 'Password updated successfully' });
     } catch (error) {

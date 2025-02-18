@@ -8,7 +8,15 @@ import {
     deleteDoc, 
     getDocs 
   } from 'firebase/firestore';
-  import { db, serverTimestamp } from '../config/firebaseConfig.js';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import crypto from 'crypto';
+import { db, auth, serverTimestamp } from '../config/firebaseConfig.js';
+
+
+// Function to generate a secure random password
+const generatePassword = (length = 12) => {
+  return crypto.randomBytes(length).toString('base64').slice(0, length);
+};
 
   //GET METHOD Trainee
   export const get_Users = async (req, res) => {
@@ -31,12 +39,36 @@ import {
   // POST METHOD - Add a new trainee
   export const create_user = async (req, res) => {
     try {
+      // Check if user exists and has uid
+      if (!req.user || !req.user.uid) {
+        return res.status(401).json({ error: 'User not authenticated' });
+      }
+  
+      // Check if user is a facilitator
+      const facilitatorRef = doc(db, 'facilitators', req.user.uid);
+      const facilitatorDoc = await getDoc(facilitatorRef);
+    
+      if (!facilitatorDoc.exists()) {
+        return res.status(403).json({ error: 'Unauthorized: Not a facilitator' });
+      }
       const { name, surname, age, gender, phoneNumber, idNumber, email } = req.body;
   
       if (!name || !surname || !age || !gender || !phoneNumber || !idNumber || !email) {
         return res.status(400).json({ error: "Missing required fields" });
       }
-  
+
+      // Generate a secure password
+      const generatedPassword = generatePassword();
+
+      // Create authentication user with generated password
+      const userCredential = await createUserWithEmailAndPassword(
+          auth, 
+          email, 
+          generatedPassword
+      );
+      const uid = userCredential.user.uid;
+
+      
       const counterRef = doc(db, "counters", "traineeCounter");
       let newTraineeId;
   
@@ -53,6 +85,7 @@ import {
   
       const newTrainee = {
         traineeId: newTraineeId,
+        uid,
         name,
         surname,
         age,
@@ -73,7 +106,10 @@ import {
         savedTrainee.createdAt = savedTrainee.createdAt.toDate().toISOString();
       }
   
-      res.status(201).json(savedTrainee);
+      res.status(201).json({
+        user: savedTrainee,
+        password: generatedPassword
+    });
     } catch (error) {
       console.error("Error adding trainee:", error);
       res
