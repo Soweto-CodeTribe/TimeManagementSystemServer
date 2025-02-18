@@ -1,5 +1,6 @@
 import express from 'express';
 import { authenticateUser, isSuperAdmin } from '../middleware/auth.js';
+import { verifyToken } from '../utilities/index.js';
 import {
   createFacilitator,
   getAllFacilitators,
@@ -11,12 +12,12 @@ import {
 
 const router = express.Router();
 
-router.post('/', authenticateUser, isSuperAdmin, createFacilitator);
-router.get('/', authenticateUser, getAllFacilitators);
-router.get('/:id', authenticateUser, getFacilitator);
-router.put('/:id', authenticateUser, updateFacilitator);
-router.delete('/:id', authenticateUser, isSuperAdmin, deleteFacilitator);
-router.post('/change-password', authenticateUser, changePassword);
+router.post('/', verifyToken, isSuperAdmin, createFacilitator);
+router.get('/', verifyToken, getAllFacilitators);
+router.get('/:id', verifyToken, getFacilitator);
+router.put('/:id', verifyToken, updateFacilitator);
+router.delete('/:id', verifyToken, isSuperAdmin, deleteFacilitator);
+router.post('/change-password', verifyToken, changePassword);
 
 
 export default router;
