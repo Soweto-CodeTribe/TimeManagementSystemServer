@@ -6,7 +6,7 @@ import { authenticateUser} from '../middleware/auth.js';
 const router = express.Router();
 
 router.get("/create-user",verifyToken, ()=>{console.log("user created")});
-router.get("/trainees", get_Users);
+router.get("/trainees",verifyToken, get_Users);
 router.post("/trainees", verifyToken, create_user);
 router.put("/trainees/:id",verifyToken, update_User);
 router.delete("/trainees/:id",verifyToken, delete_User);
