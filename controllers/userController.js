@@ -39,6 +39,11 @@ const generatePassword = (length = 12) => {
   // POST METHOD - Add a new trainee
   export const create_user = async (req, res) => {
     try {
+      // Check if user exists and has uid
+      if (!req.user || !req.user.uid) {
+        return res.status(401).json({ error: 'User not authenticated' });
+      }
+  
       // Check if user is a facilitator
       const facilitatorRef = doc(db, 'facilitators', req.user.uid);
       const facilitatorDoc = await getDoc(facilitatorRef);
