@@ -6,7 +6,9 @@ import {
     getDoc, 
     updateDoc, 
     deleteDoc, 
-    getDocs 
+    getDocs, 
+    query,
+    where
   } from 'firebase/firestore';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import crypto from 'crypto';
@@ -35,6 +37,61 @@ const generatePassword = (length = 12) => {
         .json({ error: "Failed to fetch trainees", details: error.message });
     }
   };
+
+  //GET METHOD Trainee
+  export const get_Users_By_Location = async (req, res) => {
+    try {
+        // Check if user exists and has uid
+        if (!req.user || !req.user.uid) {
+            return res.status(401).json({ error: 'User not authenticated' });
+        }
+
+        // Get facilitator's details to check location
+        const facilitatorRef = doc(db, 'facilitators', req.user.uid);
+        const facilitatorDoc = await getDoc(facilitatorRef);
+
+        if (!facilitatorDoc.exists()) {
+            return res.status(403).json({ error: 'Unauthorized: Not a facilitator' });
+        }
+
+        const facilitatorLocation = facilitatorDoc.data().location;
+        console.log("facilitator location: ", facilitatorLocation)
+
+        if (!facilitatorLocation) {
+            return res.status(400).json({ error: 'Facilitator location not set' });
+        }
+
+        // Query trainees collection with location filter
+        const traineesRef = collection(db, "trainees");
+        const locationQuery = query(traineesRef, where("location", "==", facilitatorLocation));
+        const snapshot = await getDocs(locationQuery);
+
+        const trainees = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+        }));
+
+        // Convert any timestamp fields to ISO strings
+        const formattedTrainees = trainees.map(trainee => {
+            const formatted = { ...trainee };
+            if (formatted.createdAt) {
+                formatted.createdAt = formatted.createdAt.toDate().toISOString();
+            }
+            if (formatted.updatedAt) {
+                formatted.updatedAt = formatted.updatedAt.toDate().toISOString();
+            }
+            return formatted;
+        });
+
+        res.status(200).json(formattedTrainees);
+    } catch (error) {
+        console.error("Error fetching trainees:", error);
+        res.status(500).json({ 
+            error: "Failed to fetch trainees", 
+            details: error.message 
+        });
+    }
+};
   
   // POST METHOD - Add a new trainee
   export const create_user = async (req, res) => {
@@ -51,9 +108,9 @@ const generatePassword = (length = 12) => {
       if (!facilitatorDoc.exists()) {
         return res.status(403).json({ error: 'Unauthorized: Not a facilitator' });
       }
-      const { name, surname, age, gender, phoneNumber, idNumber, email } = req.body;
+      const { name, surname, age, gender, phoneNumber, idNumber, email, location } = req.body;
   
-      if (!name || !surname || !age || !gender || !phoneNumber || !idNumber || !email) {
+      if (!name || !surname || !age || !gender || !phoneNumber || !idNumber || !email || !location) {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
@@ -93,6 +150,7 @@ const generatePassword = (length = 12) => {
         phoneNumber,
         idNumber,
         email,
+        location,
         createdAt: serverTimestamp(),
       };
   
@@ -121,39 +179,44 @@ const generatePassword = (length = 12) => {
   // PUT METHOD - Update a trainee
   export const update_User = async (req, res) => {
     const { id } = req.params;
-    const { name, surname, age, gender, phoneNumber, idNumber, email } = req.body;
     try {
-      const traineeRef = doc(db, "trainees", id);
-      const updateData = {
-        name,
-        surname,
-        age,
-        gender,
-        phoneNumber,
-        idNumber,
-        email,
-        updatedAt: serverTimestamp(),
-      };
-      
-      await updateDoc(traineeRef, updateData);
-  
-      const updatedDoc = await getDoc(traineeRef);
-      const updatedTrainee = { id, ...updatedDoc.data() };
-  
-      if (updatedTrainee.updatedAt) {
-        updatedTrainee.updatedAt = updatedTrainee.updatedAt
-          .toDate()
-          .toISOString();
-      }
-  
-      res.status(200).json(updatedTrainee);
+        const traineeRef = doc(db, "trainees", id);
+        const traineeDoc = await getDoc(traineeRef);
+
+        if (!traineeDoc.exists()) {
+            return res.status(404).json({ error: "Trainee not found" });
+        }
+
+        // Only include fields that are present in req.body
+        const updateData = {
+            ...Object.keys(req.body).reduce((acc, key) => {
+                if (req.body[key] !== undefined) {
+                    acc[key] = req.body[key];
+                }
+                return acc;
+            }, {}),
+            updatedAt: serverTimestamp()
+        };
+
+        await updateDoc(traineeRef, updateData);
+
+        const updatedDoc = await getDoc(traineeRef);
+        const updatedTrainee = { id, ...updatedDoc.data() };
+
+        if (updatedTrainee.updatedAt) {
+            updatedTrainee.updatedAt = updatedTrainee.updatedAt
+                .toDate()
+                .toISOString();
+        }
+
+        res.status(200).json(updatedTrainee);
     } catch (error) {
-      console.error("Error updating trainee:", error);
-      res
-        .status(500)
-        .json({ error: "Failed to update trainee", details: error.message });
+        console.error("Error updating trainee:", error);
+        res
+            .status(500)
+            .json({ error: "Failed to update trainee", details: error.message });
     }
-  };
+};
   
   // DELETE METHOD - Delete a trainee
   export const delete_User = async (req, res) => {
