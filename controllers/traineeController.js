@@ -10,81 +10,87 @@ import { db, serverTimestamp } from "../config/firebaseConfig.js";
 
 
 //GET METHOD Trainee
+
+
+
 export const trainee_id = async (req, res) => {
   try {
-    console.log("User in request:", req.user);
-
-    // Ensure user is authenticated
+    // Check if user exists and has uid
     if (!req.user || !req.user.uid) {
-      return res
-        .status(403)
-        .json({ error: "Unauthorized: No valid trainee data" });
+      return res.status(401).json({ error: 'User not authenticated' });
     }
-
-    // Check if user is a trainee
-    const traineeRef = doc(db, "trainees", req.user.uid);
-    const traineeDoc = await getDoc(traineeRef);
-
-    // if (!traineeDoc.exists()) {
-    //     return res.status(403).json({ error: "Unauthorized: Not a Mlab Trainee" });
-    // }
-
-    // Get logged-in trainee's data
+    // Query trainees collection to find the trainee document with matching uid
+    const traineesRef = collection(db, "trainees");
+    const snapshot = await getDocs(traineesRef);
+    const traineeDoc = snapshot.docs.find(doc => doc.data().uid === req.user.uid);
+    if (!traineeDoc) {
+      return res.status(404).json({ error: 'Trainee profile not found' });
+    }
     const traineeData = {
       id: traineeDoc.id,
-    //   id: traineeDoc.name,
-    //   id: traineeDoc.surname,
-    //   id: traineeDoc.email,
-    //   id: traineeDoc.phoneNumber,
-    //   id: traineeDoc.age,
-    //   id: traineeDoc.gender,
-      ...traineeDoc.data(),
+      ...traineeDoc.data()
     };
-    const trainee_details = traineeDoc.data()
-
+    // Convert timestamps to ISO string
+    if (traineeData.createdAt) {
+      traineeData.createdAt = traineeData.createdAt.toDate().toISOString();
+    }
+    if (traineeData.updatedAt) {
+      traineeData.updatedAt = traineeData.updatedAt.toDate().toISOString();
+    }
     res.status(200).json(traineeData);
-    console.log("Success fetching trainee data")
   } catch (error) {
-    console.error("Error fetching trainee:", error);
-    res
-      .status(500)
-      .json({ error: "Failed to fetch trainee", details: error.message });
+    console.error("Error fetching trainee profile:", error);
+    res.status(500).json({
+      error: "Failed to fetch trainee profile",
+      details: error.message
+    });
   }
 };
+
 
 // PUT METHOD - Update a trainee
+
 export const update_Trainee = async (req, res) => {
-  const { id } = req.params;
-  const { name, surname, age, gender, phoneNumber, idNumber, email } = req.body;
-  try {
-    const traineeRef = doc(db, "trainees", id);
-    const updateData = {
-      name,
-      surname,
-      age,
-      gender,
-      phoneNumber,
-      idNumber,
-      email,
-      updatedAt: serverTimestamp(),
-    };
-
-    await updateDoc(traineeRef, updateData);
-
-    const updatedDoc = await getDoc(traineeRef);
-    const updatedTrainee = { id, ...updatedDoc.data() };
-
-    if (updatedTrainee.updatedAt) {
-      updatedTrainee.updatedAt = updatedTrainee.updatedAt
-        .toDate()
-        .toISOString();
+    try {
+      // Check if user exists and has uid
+      if (!req.user || !req.user.uid) {
+        return res.status(401).json({ error: 'User not authenticated' });
+      }
+      // Query trainees collection to find the trainee document with matching uid
+      const traineesRef = collection(db, "trainees");
+      const snapshot = await getDocs(traineesRef);
+      const traineeDoc = snapshot.docs.find(doc => doc.data().uid === req.user.uid);
+      if (!traineeDoc) {
+        return res.status(404).json({ error: 'Trainee profile not found' });
+      }
+      // Only include fields that are present in req.body
+      const updateData = {
+        ...Object.keys(req.body).reduce((acc, key) => {
+          if (req.body[key] !== undefined) {
+            acc[key] = req.body[key];
+          }
+          return acc;
+        }, {}),
+        updatedAt: serverTimestamp()
+      };
+      // Update the trainee document
+      const traineeRef = doc(db, "trainees", traineeDoc.id);
+      await updateDoc(traineeRef, updateData);
+      // Fetch and return the updated document
+      const updatedDoc = await getDoc(traineeRef);
+      const updatedTrainee = {
+        id: traineeDoc.id,
+        ...updatedDoc.data()
+      };
+      if (updatedTrainee.updatedAt) {
+        updatedTrainee.updatedAt = updatedTrainee.updatedAt.toDate().toISOString();
+      }
+      res.status(200).json(updatedTrainee);
+    } catch (error) {
+      console.error("Error updating trainee profile:", error);
+      res.status(500).json({
+        error: "Failed to update trainee profile",
+        details: error.message
+      });
     }
-
-    res.status(200).json(updatedTrainee);
-  } catch (error) {
-    console.error("Error updating trainee:", error);
-    res
-      .status(500)
-      .json({ error: "Failed to update trainee", details: error.message });
-  }
-};
+  };
