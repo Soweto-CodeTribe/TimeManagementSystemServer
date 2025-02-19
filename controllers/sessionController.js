@@ -185,3 +185,16 @@ export const checkOut = async (req, res) => {
         res.status(500).json({ error: 'Failed to check out' });
       }
 };
+
+export const traineeStatus = async (req, res) => {
+  try {
+    const { traineeId } = req.body;
+    const snapshot = await get(ref(rtdb, `liveTracking/${traineeId}`));
+    const status = snapshot.val();
+
+    res.status(200).json(status || { message: "Not checked in" });
+  } catch (error) {
+    console.error("Status check error:", error);
+    res.status(500).json({ error: "Failed to get status" });
+  }
+}
