@@ -10,9 +10,6 @@ import { db, serverTimestamp } from "../config/firebaseConfig.js";
 
 
 //GET METHOD Trainee
-
-
-
 export const trainee_id = async (req, res) => {
   try {
     // Check if user exists and has uid
@@ -49,7 +46,6 @@ export const trainee_id = async (req, res) => {
 
 
 // PUT METHOD - Update a trainee
-
 export const update_Trainee = async (req, res) => {
     try {
       // Check if user exists and has uid

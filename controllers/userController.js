@@ -10,7 +10,7 @@ import {
     query,
     where
   } from 'firebase/firestore';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, sendPasswordResetEmail  } from 'firebase/auth';
 import crypto from 'crypto';
 import { db, auth, serverTimestamp } from '../config/firebaseConfig.js';
 
@@ -125,6 +125,9 @@ const generatePassword = (length = 12) => {
       );
       const uid = userCredential.user.uid;
 
+      // Send password reset email
+      await sendPasswordResetEmail(auth, email);
+
       
       const counterRef = doc(db, "counters", "traineeCounter");
       let newTraineeId;
@@ -166,7 +169,8 @@ const generatePassword = (length = 12) => {
   
       res.status(201).json({
         user: savedTrainee,
-        password: generatedPassword
+        password: generatedPassword,
+        message: `User created successfully. A password reset email has been sent to ${email}`
     });
     } catch (error) {
       console.error("Error adding trainee:", error);

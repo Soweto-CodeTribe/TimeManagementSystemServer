@@ -1,5 +1,5 @@
 import { auth, db, serverTimestamp } from '../config/firebaseConfig.js';
-import { createUserWithEmailAndPassword, deleteUser, updatePassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, deleteUser, updatePassword, sendPasswordResetEmail } from 'firebase/auth';
 import { collection, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, query, where } from 'firebase/firestore';
 import crypto from 'crypto';
 
@@ -19,6 +19,9 @@ export const createFacilitator = async (req, res) => {
         // Create user in Firebase Auth
         const userCredential = await createUserWithEmailAndPassword(auth, req.body.email, generatedPassword);
         const user = userCredential.user;
+
+        // Send password reset email
+        await sendPasswordResetEmail(auth, email);
 
         // Create facilitator in Firestore - without storing the password
         const facilitatorData = {
