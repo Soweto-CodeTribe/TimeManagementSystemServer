@@ -1,6 +1,7 @@
 // import admin from 'firebase-admin';
 // import Facilitator from '../models/facilitatorModels.js';
-
+import { db } from '../config/firebaseConfig.js';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 
 //Middleware to authenticate requests using Firebase token
 
@@ -9,17 +10,18 @@
 //Middleware to check if user has super_admin privileges
 export const isSuperAdmin = async (req, res, next) => {
   try {
-    const db = admin.firestore();
-    
-    // Check Firebase custom claims first
-    if (req.user.role === 'super_admin') {
-      return next();
+    // Ensure req.user exists
+    if (!req.user || !req.user.uid) {
+      return res.status(401).json({ error: 'Unauthorized: No user found' });
     }
 
-    // Fallback to Firestore check
-    const facilitatorSnapshot = await db.collection('facilitators')
-      .where('uid', '==', req.user.uid)
-      .get();
+    // Check Firestore for user role
+    const facilitatorQuery = query(
+      collection(db, 'facilitators'),
+      where('uid', '==', req.user.uid)
+    );
+
+    const facilitatorSnapshot = await getDocs(facilitatorQuery);
 
     if (facilitatorSnapshot.empty) {
       return res.status(403).json({ error: 'Unauthorized: User not found' });

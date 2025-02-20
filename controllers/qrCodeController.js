@@ -32,7 +32,9 @@ export const generateQRCode = async (req, res) => {
   }
 };
 
-export const verifyQRCode = async (scannedQR) => {
+export const verifyQRCode = async (req, res) => {
+
+  const {qrId} = req.id
   try {
     const docRef = doc(db, "qrCodes", "dailyQR");
     const docSnap = await getDoc(docRef);
@@ -45,13 +47,13 @@ export const verifyQRCode = async (scannedQR) => {
     const currentTime = Date.now();
 
     // Check if QR is valid and not expired
-    if (scannedQR.id === storedQR.id && currentTime <= storedQR.validUntil) {
-      return { success: true, message: "Valid QR Code" };
+    if (qrId === storedQR.id && currentTime <= storedQR.validUntil) {
+      res.status(200).json({ success: true, message: "Valid QR Code" });
     } else {
-      return { success: false, message: "Invalid or expired QR Code" };
+      res.status(404).json({ success: false, message: "Invalid or expired QR Code" });
     }
   } catch (error) {
     console.error("QR verification failed:", error);
-    return { success: false, message: "Internal Server Error" };
+    res.status(500).json({ success: false, message: "Internal Server Error" });
   }
 };
