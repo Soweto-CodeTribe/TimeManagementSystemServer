@@ -1,5 +1,5 @@
 import express from 'express';
-import { authenticateUser, isSuperAdmin } from '../middleware/auth.js';
+import {  isSuperAdmin } from '../middleware/auth.js';
 import { verifyToken } from '../utilities/index.js';
 import {
   createFacilitator,

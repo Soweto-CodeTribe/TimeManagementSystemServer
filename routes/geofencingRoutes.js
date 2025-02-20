@@ -8,6 +8,7 @@ import {
   deleteAllowedLocation,
   getLocationLogs
 } from "../controllers/geofencingController.js";
+// import { isSuperAdmin } from "../middleware/auth.js";
 
 const router = express.Router();
 
@@ -18,4 +19,4 @@ router.delete("/locations/:id", verifyToken, deleteAllowedLocation);
 router.post("/validate-location", verifyToken, validateLocation);
 router.get("/location-logs", verifyToken, getLocationLogs);
 
-export default router;
+export default router
