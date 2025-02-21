@@ -1,6 +1,7 @@
 import { db } from "../config/firebaseConfig.js";
-import { collection, doc, setDoc, getDoc, addDoc, getDocs } from "firebase/firestore";
+import { collection, doc, setDoc, getDoc, addDoc, getDocs, Timestamp } from "firebase/firestore";
 import QRCode from "qrcode";
+import { formatTime } from "./sessionController.js";
 export const guestQR = async (req, res) => {
   try {
     const { title, date, location, description } = req.body;
@@ -48,4 +49,38 @@ export const getAllEvents = async (req, res) => {
         console.error("Failed to retrieve events:", error);
         res.status(500).json({ error: "Failed to retrieve events" });
     }
+}
+
+export const guestCheckIn = async (req, res) => {
+    try {
+        const { eventId } = req.params;
+        const guestInfo = req.body;
+        const checkInTime = formatTime();
+    
+        // Verify event exists
+        const eventDoc = await getDoc(doc(db, "events", eventId));
+        if (!eventDoc.exists()) {
+          return res.status(404).json({ error: "Event not found" });
+        }
+    
+        // Create guest check-in record
+        const guestRef = doc(collection(db, "eventGuests"));
+        await setDoc(guestRef, {
+          guestId: guestRef.id,
+          eventId,
+          checkInTime,
+          checkInDate: new Date().toISOString().split('T')[0],
+          ...guestInfo,
+          timestamp: Timestamp.now()
+        });
+    
+        res.status(200).json({
+          message: "Guest check-in successful",
+          guestId: guestRef.id,
+          checkInTime
+        });
+      } catch (error) {
+        console.error("Guest check-in error:", error);
+        res.status(500).json({ error: "Failed to check in guest" });
+      }
 }

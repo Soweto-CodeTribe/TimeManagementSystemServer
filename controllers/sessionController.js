@@ -11,7 +11,7 @@ import {
 import { ref, set, get, update } from "firebase/database";
 import { db, rtdb } from "../config/firebaseConfig.js";
 
-const formatTime = () => {
+export const formatTime = () => {
   return new Date().toLocaleTimeString("en-US", {
     hour: "2-digit",
     minute: "2-digit",
