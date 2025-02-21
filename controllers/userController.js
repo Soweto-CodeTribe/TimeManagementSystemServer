@@ -108,9 +108,9 @@ const generatePassword = (length = 12) => {
       if (!facilitatorDoc.exists()) {
         return res.status(403).json({ error: 'Unauthorized: Not a facilitator' });
       }
-      const { name, surname, age, gender, phoneNumber, idNumber, email, location } = req.body;
+      const { name, surname, age, gender, phoneNumber, idNumber, email, location, messages, notifications } = req.body;
   
-      if (!name || !surname || !age || !gender || !phoneNumber || !idNumber || !email || !location) {
+      if (!name || !surname || !age || !gender || !phoneNumber || !idNumber || !email || !location || !messages || !notifications) {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
@@ -151,6 +151,8 @@ const generatePassword = (length = 12) => {
         idNumber,
         email,
         location,
+        messages,
+        notifications,
         createdAt: serverTimestamp(),
       };
   
