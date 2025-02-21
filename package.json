@@ -2,7 +2,9 @@
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "server": "nodemon server.js"
+    "server": "nodemon server.js",
+    "start": "node server",
+    "build":"npm install"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",
