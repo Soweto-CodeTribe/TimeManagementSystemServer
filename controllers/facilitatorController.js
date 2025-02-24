@@ -105,9 +105,9 @@ export const updateFacilitator = async (req, res) => {
             );
             const requesterSnapshot = await getDocs(requesterQuery);
             
-            if (!requesterSnapshot.empty && requesterSnapshot.docs[0].data().role !== 'super_admin') {
-                return res.status(403).json({ error: 'Unauthorized to edit this profile' });
-            }
+            // if (!requesterSnapshot.empty && requesterSnapshot.docs[0].data().role !== 'super_admin') {
+            //     return res.status(403).json({ error: 'Unauthorized to edit this profile' });
+            // }
         }
 
         const updateData = {

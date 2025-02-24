@@ -3,7 +3,7 @@ import express from "express";
 import { verifyToken } from "../utilities/index.js";
 import { create_user, delete_User, update_User, deleted_Users, get_Users, get_Users_By_Location } from "../controllers/userController.js";
 import { trainee_id, update_Trainee } from '../controllers/traineeController.js';
-import { authenticateUser, isSuperAdmin} from '../middleware/auth.js';
+import {  isSuperAdmin} from '../middleware/auth.js';
 
 const router = express.Router();
 
