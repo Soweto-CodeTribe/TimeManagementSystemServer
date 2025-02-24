@@ -1,6 +1,7 @@
-import { auth } from "../config/firebaseConfig.js";
+import { auth, db } from "../config/firebaseConfig.js";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import generateToken from "../utilities/index.js";
+import { collection, query, where, getDocs } from "firebase/firestore";
 
 export const login = async (req, res) => {
   const { email, password } = req.body;
@@ -34,24 +35,28 @@ export const login_Trainee = async (req, res) => {
   const { email, password } = req.body;
 
   try {
-    const userCredential = await signInWithEmailAndPassword(
-      auth,
-      email,
-      password
-    );
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    const uid = userCredential.user.uid;
 
-    // Include both uid and email in the token payload
-    const token = generateToken({
-      uid: userCredential.user.uid,
-      email: userCredential.user.email
-    });
+    const traineesRef = collection(db, "trainees");
+    const q = query(traineesRef, where("uid", "==", uid));
+    const querySnapshot = await getDocs(q);
 
-    const firebase_token = await userCredential.user.getIdToken();
+    let traineeData = null;
+
+    if (!querySnapshot.empty) {
+      querySnapshot.forEach((doc) => {
+        traineeData = { id: doc.id, ...doc.data() };
+      });
+    }
+
+    // Generate a token with both uid and email
+    const token = generateToken({ uid, email: userCredential.user.email });
 
     res.status(200).json({ 
-      token: token, 
-      firebase_token: firebase_token,
-      user: userCredential.user
+      token, 
+      user: userCredential.user.email, 
+      trainee: traineeData 
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
