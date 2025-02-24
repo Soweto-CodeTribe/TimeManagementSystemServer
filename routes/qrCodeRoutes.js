@@ -1,11 +1,10 @@
 import express from "express";
-import { generateQRCode, verifyQRCode } from "../controllers/qrCodeController.js";
+import { getQRcode, verifyQRCode } from "../controllers/qrCodeController.js";
+import { verifyToken } from "../utilities/index.js";
 
 const router = express.Router();
 
-router.get("/get-QRcode", generateQRCode);
-router.post("/verify-QRcode", verifyQRCode);
-
-
+router.get("/get-QRcode", getQRcode);
+router.post("/verify-QRcode", verifyToken, verifyQRCode);
 
 export default router;
