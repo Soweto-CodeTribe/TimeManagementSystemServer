@@ -20,6 +20,21 @@ export const formatTime = () => {
   });
 };
 
+const checkTime = (checkInTime) => {
+  const [hours, minutes] = checkInTime.split(":").map(Number);
+  const totalMinutes = hours * 60 + minutes;
+
+  if (totalMinutes < 480) {
+    return "Early";
+  } else if (totalMinutes >= 481 && totalMinutes <= 490) {
+    return "Within grace period";
+  } else if (totalMinutes > 496) {
+    return "Late";
+  } else {
+    return "On time";
+  }
+};
+
 const getTodayReportDoc = async (traineeId) => {
   const today = new Date().toISOString().split("T")[0];
   const reportRef = doc(db, `reports/${traineeId}`);
@@ -36,14 +51,21 @@ const getTodayReportDoc = async (traineeId) => {
 export const checkIn = async (req, res) => {
   try {
     const { traineeId, name, checkInTime, location } = req.body;
-    // const checkInTime = formatTime();
+
+    console.log("Received Check-in Data:", { traineeId, name, checkInTime, location });
+
+    // Validate Required Fields
+    if (!traineeId || !name || !checkInTime) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
     const timestamp = Date.now();
 
     // Update Realtime Database
     await set(ref(rtdb, `liveTracking/${traineeId}`), {
       name,
       checkInTime,
-      location,
+      location: location || "Unknown",
       lunchStatus: "Working",
       lastUpdated: timestamp,
     });
@@ -56,7 +78,7 @@ export const checkIn = async (req, res) => {
         [today]: {
           date: today,
           checkInTime,
-          location,
+          location: location || "Unknown",
           totalHoursWorked: 0,
           totalLunchMinutes: 0,
           name,
@@ -65,12 +87,15 @@ export const checkIn = async (req, res) => {
       { merge: true }
     );
 
-    res.status(200).json({ message: "Check-in successful", checkInTime });
+    const timeStatus = checkTime(checkInTime);
+
+    res.status(200).json({ message: "Check-in successful", checkInTime, timeStatus });
   } catch (error) {
     console.error("Check-in error:", error);
     res.status(500).json({ error: "Failed to check in" });
   }
 };
+
 
 export const lunchStart = async (req, res) => {
   try {
