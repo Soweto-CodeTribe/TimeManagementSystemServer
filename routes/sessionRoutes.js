@@ -10,10 +10,10 @@ import { verifyToken } from "../utilities/index.js";
 
 const router = express.Router();
 
-router.post("/check-in", checkIn);
-router.post("/lunch-start", lunchStart);
-router.post("/lunch-end", lunchEnd);
-router.post("/check-out", checkOut);
+router.post("/check-in", verifyToken, checkIn);
+router.post("/lunch-start",verifyToken, lunchStart);
+router.post("/lunch-end",verifyToken, lunchEnd);
+router.post("/check-out",verifyToken, checkOut);
 router.get("/session-status/:id", verifyToken, traineeStatus);
 
 export default router;
