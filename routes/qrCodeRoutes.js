@@ -5,6 +5,6 @@ import { verifyToken } from "../utilities/index.js";
 const router = express.Router();
 
 router.get("/get-QRcode", getQRcode);
-router.post("/verify-QRcode", verifyToken, verifyQRCode);
+router.post("/verify-QRcode", verifyQRCode);
 
 export default router;

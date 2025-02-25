@@ -13,6 +13,7 @@ import { db, rtdb } from "../config/firebaseConfig.js";
 
 export const formatTime = () => {
   return new Date().toLocaleTimeString("en-US", {
+    timeZone: "Africa/Johannesburg",
     hour: "2-digit",
     minute: "2-digit",
     hour12: true,
