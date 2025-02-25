@@ -35,14 +35,15 @@ const getTodayReportDoc = async (traineeId) => {
 
 export const checkIn = async (req, res) => {
   try {
-    const { traineeId, name } = req.body;
-    const checkInTime = formatTime();
+    const { traineeId, name, checkInTime, location } = req.body;
+    // const checkInTime = formatTime();
     const timestamp = Date.now();
 
     // Update Realtime Database
     await set(ref(rtdb, `liveTracking/${traineeId}`), {
       name,
       checkInTime,
+      location,
       lunchStatus: "Working",
       lastUpdated: timestamp,
     });
@@ -55,6 +56,7 @@ export const checkIn = async (req, res) => {
         [today]: {
           date: today,
           checkInTime,
+          location,
           totalHoursWorked: 0,
           totalLunchMinutes: 0,
           name,
