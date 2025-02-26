@@ -1,0 +1,21 @@
+name,email,phone,location,gender,age,qualification,idNumber
+Thabo Mokoena,thabo.mokoena@example.com,0711234567,Soweto,Male,24,Diploma in IT,9901235678082
+Nomvula Ndlovu,nomvula.ndlovu@example.com,0821234568,Soweto,Female,22,Bachelor's in Education,0010234567083
+Sipho Mabaso,sipho.mabaso@example.com,0631234569,Soweto,Male,26,Certificate in Business,9707125678084
+Lerato Khumalo,lerato.khumalo@example.com,0731234570,Soweto,Female,28,Bachelor's in Computer Science,9503224567085
+Bongani Zulu,bongani.zulu@example.com,0651234571,Soweto,Male,25,High School Certificate,9806155678086
+Nkosazana Dlamini,nkosazana.dlamini@example.com,0761234572,Durban,Female,23,Diploma in Marketing,0102234567087
+Siyabonga Mbatha,siyabonga.mbatha@example.com,0671234573,Durban,Male,27,Bachelor's in Engineering,9704205678088
+Ayanda Mkhize,ayanda.mkhize@example.com,0831234574,Durban,Female,24,Diploma in Graphic Design,9907124567089
+Vusi Khoza,vusi.khoza@example.com,0741234575,Durban,Male,29,Certificate in Project Management,9410155678090
+Zinhle Naidoo,zinhle.naidoo@example.com,0781234576,Durban,Female,26,Bachelor's in Communications,9801224567091
+Tebogo Mohlala,tebogo.mohlala@example.com,0791234577,Limpopo,Male,25,Diploma in Agriculture,9806145678092
+Dikeledi Molefe,dikeledi.molefe@example.com,0661234578,Limpopo,Female,23,High School Certificate,0103214567093
+Katlego Maluleke,katlego.maluleke@example.com,0721234579,Limpopo,Male,27,Certificate in Accounting,9610275678094
+Refilwe Mathebula,refilwe.mathebula@example.com,0811234580,Limpopo,Female,28,Bachelor's in Social Work,9509214567095
+Tumelo Matlala,tumelo.matlala@example.com,0771234581,Limpopo,Male,24,Diploma in Logistics,9903135678096
+Palesa Modise,palesa.modise@example.com,0681234582,Kimberley,Female,26,Bachelor's in Geology,9801184567097
+Kagiso Motsepe,kagiso.motsepe@example.com,0731234583,Kimberley,Male,25,Certificate in Hospitality,9811235678098
+Nthabiseng Seboko,nthabiseng.seboko@example.com,0641234584,Kimberley,Female,24,Diploma in Finance,0002144567099
+Oratile Kgositsile,oratile.kgositsile@example.com,0821234585,Kimberley,Male,27,High School Certificate,9704235678100
+Boitumelo Tlou,boitumelo.tlou@example.com,0761234586,Kimberley,Female,29,Bachelor's in Psychology,9504184567101
