@@ -106,4 +106,3 @@ export function scheduleQRCodeGeneration() {
     setInterval(generateQRCode, 24 * 60 * 60 * 1000); // Run every 24 hours
   }, timeUntilNext1AM);
 }
-

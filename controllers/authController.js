@@ -1,5 +1,5 @@
 import { auth, db, serverTimestamp } from "../config/firebaseConfig.js";
-import { PhoneAuthProvider, signInWithCredential, signInWithEmailAndPassword } from "firebase/auth";
+import { PhoneAuthProvider, signInWithCredential, signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
 import { 
   doc, 
   setDoc, 
@@ -13,6 +13,25 @@ import {
   deleteDoc 
 } from "firebase/firestore";
 import generateToken from "../utilities/index.js";
+
+async function getTraineeStats(traineeId) {
+  if (!traineeId) {
+    console.log("No traineeId provided to getTraineeStats");
+    return null;
+  }
+
+  console.log(`Fetching reports for traineeId: ${traineeId}`);
+
+  const traineeReportRef = doc(db, "reports", traineeId); 
+  const docSnap = await getDoc(traineeReportRef);
+
+  if (docSnap.exists()) {
+    return { id: docSnap.id, ...docSnap.data() };
+  } else {
+    console.log("No report found for this trainee.");
+    return null;
+  }
+}
 
 
 // Function to generate a random 6-digit code
@@ -112,8 +131,7 @@ export const login = async (req, res) => {
   }
 };
 
-
-
+//Trainee Login
 export const login_Trainee = async (req, res) => {
   const { email, password } = req.body;
 
@@ -121,25 +139,37 @@ export const login_Trainee = async (req, res) => {
     // First authenticate with email/password
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
+    const uid = user.uid;
     
-    // Check if user is a trainee
-    const traineeDocRef = doc(db, "trainees", user.uid);
-    const traineeDoc = await getDoc(traineeDocRef);
+    console.log(`🔍 Searching for trainee with uid: ${uid}`);
+    const traineesRef = collection(db, "trainees");
+    const q = query(traineesRef, where("uid", "==", uid));
+    const querySnapshot = await getDocs(q);
     
-    if (!traineeDoc.exists()) {
-      return res.status(403).json({
-        message: "This user is not registered as a trainee"
+    let traineeData = null;
+    
+    if (!querySnapshot.empty) {
+      querySnapshot.forEach((doc) => {
+        traineeData = { id: doc.id, ...doc.data() };
       });
+    } else {
+      console.log("⚠️ No trainee found for this UID.");
+      return res.status(404).json({ message: "Trainee not found" });
+    }
+    
+    if (!traineeData.id) {
+      console.log("❌ traineeData.id is undefined");
+      return res.status(500).json({ message: "Invalid trainee data" });
     }
     
     // Check if 2FA is enabled for this trainee
-    if (traineeDoc.data().twoFactorEnabled === true) {
+    if (traineeData.twoFactorEnabled === true) {
       // Generate a verification code
       const verificationCode = generateVerificationCode();
       
       // Store the verification code in Firestore with an expiration time
       const verificationRef = await addDoc(collection(db, "verificationCodes"), {
-        userId: user.uid,
+        userId: uid,
         userType: "trainee",
         code: verificationCode,
         createdAt: serverTimestamp(),
@@ -155,9 +185,12 @@ export const login_Trainee = async (req, res) => {
       });
     }
     
+    // Fetch trainee report by document ID (traineeId)
+    const reports = await getTraineeStats(traineeData.id);
+    
     // 2FA not enabled, proceed with normal login
     const token = generateToken({
-      uid: user.uid,
+      uid: uid,
       email: user.email,
       userType: "trainee"
     });
@@ -165,14 +198,14 @@ export const login_Trainee = async (req, res) => {
     return res.status(200).json({
       token,
       user: user.email,
-      userType: "trainee"
+      userType: "trainee",
+      trainee: traineeData,
+      traineeReports: reports
     });
     
   } catch (error) {
-    console.error("Login Trainee error:", error);
-    
-    // Handle errors
-    return res.status(400).json({
+    console.error("❌ Error during login:", error.message);
+    return res.status(500).json({
       message: error.message,
       code: error.code
     });
@@ -232,32 +265,78 @@ export const verify2FA = async (req, res) => {
   }
 
   try {
-    // Verify the code using the verification ID and code provided
-    const credential = PhoneAuthProvider.credential(verificationId, verificationCode);
+    // Retrieve the verification document from Firestore
+    const verificationDocRef = doc(db, "verificationCodes", verificationId);
+    const verificationDoc = await getDoc(verificationDocRef);
     
-    // Use signInWithCredential to authenticate the user with the SMS code
-    const userCredential = await signInWithCredential(auth, credential);
-    const user = userCredential.user;
-
-    // Check if 2FA is enabled
-    const userInfo = await getUserDocRef(user.uid);
-    if (!userInfo || userInfo.data.twoFactorEnabled === false) {
-      return res.status(400).json({ message: "2FA is not enabled for this user" });
+    if (!verificationDoc.exists()) {
+      return res.status(404).json({ message: "Verification record not found" });
     }
-
-    // Generate a token and return user info
+    
+    const verificationData = verificationDoc.data();
+    
+    // Check if the code is expired
+    const now = new Date();
+    if (verificationData.expiresAt.toDate() < now) {
+      return res.status(400).json({ message: "Verification code has expired" });
+    }
+    
+    // Check if the code has already been used
+    if (verificationData.used) {
+      return res.status(400).json({ message: "Verification code has already been used" });
+    }
+    
+    // Verify the code
+    if (verificationData.code !== verificationCode) {
+      return res.status(400).json({ message: "Invalid verification code" });
+    }
+    
+    // Mark the code as used
+    await updateDoc(verificationDocRef, {
+      used: true,
+      usedAt: serverTimestamp()
+    });
+    
+    // Get user information using the helper function
+    const userId = verificationData.userId;
+    const userInfo = await getUserDocRef(userId);
+    
+    if (!userInfo) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    
+    // Generate a token
     const token = generateToken({
-      uid: user.uid,
-      email: user.email,
-      userType: userInfo.userType
+      uid: userId,
+      email: userInfo.data.email,
+      userType: verificationData.userType
     });
-
-    return res.status(200).json({
+    
+    // Base response that will be returned for all user types
+    const baseResponse = {
       token,
-      user: user.email,
-      userType: userInfo.userType,
+      user: userInfo.data.email,
+      userType: verificationData.userType,
       message: "2FA verification successful"
-    });
+    };
+    
+    // If the user is a trainee, fetch trainee reports and add to response
+    if (verificationData.userType === "trainee") {
+      // Get the trainee data that's already retrieved by getUserDocRef
+      const traineeData = { id: userInfo.docRef.id, ...userInfo.data };
+      
+      // Fetch trainee reports
+      const reports = await getTraineeStats(traineeData.id);
+      
+      return res.status(200).json({
+        ...baseResponse,
+        trainee: traineeData,
+        traineeReports: reports
+      });
+    }
+    
+    // For non-trainee users, return just the base response
+    return res.status(200).json(baseResponse);
   } catch (error) {
     console.error("Verify 2FA error:", error);
     return res.status(500).json({
@@ -298,5 +377,30 @@ export const disable2FA = async (req, res) => {
     return res.status(500).json({
       message: error.message
     });
+  }
+};
+
+
+export const forgotPassword = async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ message: "Email is required" });
+  }
+
+  // const auth = getAuth();
+
+  try {
+    await sendPasswordResetEmail(auth, email);
+    return res.status(200).json({ message: "Password reset link sent successfully" });
+  } catch (error) {
+    console.error("Forgot Password Error:", error);
+
+    // Handle specific Firebase error codes
+    if (error.code === "auth/user-not-found") {
+      return res.status(404).json({ message: "Email not registered" });
+    }
+
+    return res.status(500).json({ message: "Something went wrong, please try again later" });
   }
 };

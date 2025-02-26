@@ -21,7 +21,7 @@ export const createFacilitator = async (req, res) => {
         const user = userCredential.user;
 
         // Send password reset email
-        await sendPasswordResetEmail(auth, email);
+        await sendPasswordResetEmail(auth, req.body.email);
 
         // Create facilitator in Firestore - without storing the password
         const facilitatorData = {
