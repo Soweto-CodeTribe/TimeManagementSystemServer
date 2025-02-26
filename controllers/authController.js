@@ -1,5 +1,5 @@
 import { auth, db } from "../config/firebaseConfig.js";
-import { signInWithEmailAndPassword } from "firebase/auth";
+import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
 import generateToken from "../utilities/index.js";
 import { collection, query, where, getDocs } from "firebase/firestore";
 
@@ -97,5 +97,30 @@ export const login_Trainee = async (req, res) => {
   } catch (error) {
     console.error("❌ Error during login:", error.message);
     res.status(500).json({ message: error.message });
+  }
+};
+
+
+export const forgotPassword = async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ message: "Email is required" });
+  }
+
+  // const auth = getAuth();
+
+  try {
+    await sendPasswordResetEmail(auth, email);
+    return res.status(200).json({ message: "Password reset link sent successfully" });
+  } catch (error) {
+    console.error("Forgot Password Error:", error);
+
+    // Handle specific Firebase error codes
+    if (error.code === "auth/user-not-found") {
+      return res.status(404).json({ message: "Email not registered" });
+    }
+
+    return res.status(500).json({ message: "Something went wrong, please try again later" });
   }
 };

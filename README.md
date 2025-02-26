@@ -1,226 +1,594 @@
-# Geofencing API Documentation
-
-## Overview
-This API provides endpoints for managing geofenced locations and validating user positions within allowed areas. All endpoints require authentication via a JWT token (`verifyToken` middleware). Most endpoints also require super admin privileges (`isSuperAdmin` middleware).
+# Backend API Documentation
 
 ## Base URL
-```
-/api/geofencing
-```
+
+`https://timemanagementsystemserver.onrender.com`
 
 ## Authentication
-- All requests must include a valid JWT token in the Authorization header:
-  ```
-  Authorization: Bearer <your_jwt_token>
-```
 
-## Endpoints
+### Login (Trainee)
 
-### 1. Add Allowed Location
-Creates a new geofenced location.
-
-**Endpoint:** `POST /locations`  
-**Access:** Super Admin only
+**Endpoint:** `POST /api/auth/loginT`
 
 **Request Body:**
+
 ```json
 {
-  "name": "Office Building",
-  "latitude": 51.5074,
-  "longitude": -0.1278,
-  "radius": 100,
-  "description": "Main office location" // optional
+    "email": "example@gmail.com",
+    "password": "blahblahblah23!"
 }
 ```
 
-**Response (201 Created):**
+**Response:**
+
 ```json
 {
-  "id": "location_id",
-  "name": "Office Building",
-  "latitude": 51.5074,
-  "longitude": -0.1278,
-  "radius": 100,
-  "description": "Main office location",
-  "createdAt": "2024-02-24T12:00:00Z",
-  "active": true
+    "token": "<JWT_TOKEN>",
+    "user": "example@gmail.com",
+    "trainee": { <Trainee_Details> },
+    "traineeReports": { <Trainee_Reports> }
 }
 ```
 
-### 2. Get All Allowed Locations
-Retrieves all configured geofenced locations.
+---
 
-**Endpoint:** `GET /locations`  
-**Access:** Super Admin only
+### Super Admin Login
 
-**Response (200 OK):**
-```json
-[
-  {
-    "id": "location_id",
-    "name": "Office Building",
-    "latitude": 51.5074,
-    "longitude": -0.1278,
-    "radius": 100,
-    "description": "Main office location",
-    "createdAt": "2024-02-24T12:00:00Z",
-    "active": true
-  }
-]
-```
-
-### 3. Validate User Location
-Checks if a user's location is within any allowed geofenced area.
-
-**Endpoint:** `POST /validate-location`  
-**Access:** Any authenticated user
+**Endpoint:** `POST /api/auth/login`
 
 **Request Body:**
+
 ```json
 {
-  "userId": "user_id",
-  "latitude": 51.5074,
-  "longitude": -0.1278
+    "email": "superadmin@example.com",
+    "password": "temporaryPassword123!"
 }
 ```
 
-**Success Response (200 OK):**
-```json
-{
-  "allowed": true,
-  "location": "Office Building",
-  "distance": 45 // distance in meters from location center
-}
-```
+---
 
-**Failure Response (403 Forbidden):**
-```json
-{
-  "allowed": false,
-  "message": "Location not within allowed area",
-  "nearestLocation": "Office Building",
-  "distance": 150, // current distance in meters
-  "requiredDistance": 100 // maximum allowed distance in meters
-}
-```
+## Attendance Management
 
-### 4. Update Allowed Location
-Updates an existing geofenced location.
+### Check-In
 
-**Endpoint:** `PUT /locations/:id`  
-**Access:** Super Admin only
-
-**URL Parameters:**
-- `id`: Location ID
+**Endpoint:** `POST /api/session/check-in`
 
 **Request Body:**
-```json
-{
-  "name": "Updated Office Name",
-  "latitude": 51.5074,
-  "longitude": -0.1278,
-  "radius": 150,
-  "description": "Updated description",
-  "active": true
-}
-```
-All fields are optional. Only provided fields will be updated.
 
-**Response (200 OK):**
 ```json
 {
-  "id": "location_id",
-  "name": "Updated Office Name",
-  "latitude": 51.5074,
-  "longitude": -0.1278,
-  "radius": 150,
-  "description": "Updated description",
-  "active": true,
-  "updatedAt": "2024-02-24T12:00:00Z"
+    "traineeId": "10",
+    "name": "John Doe",
+    "location": "soweto",
+    "checkIn": "08:00"
 }
 ```
 
-### 5. Delete Allowed Location
-Removes a geofenced location.
+**Response:**
 
-**Endpoint:** `DELETE /locations/:id`  
-**Access:** Super Admin only
-
-**URL Parameters:**
-- `id`: Location ID
-
-**Response (200 OK):**
 ```json
 {
-  "message": "Location deleted successfully"
+    "message": "Check-in successful",
+    "checkInTime": "08:29 AM"
 }
 ```
 
-### 6. Get Location Logs
-Retrieves history of location validation attempts.
+**Authentication:** Requires Bearer Token
 
-**Endpoint:** `GET /location-logs`  
-**Access:** Super Admin only
+---
 
-**Response (200 OK):**
-```json
-[
-  {
-    "id": "log_id",
-    "userId": "user_id",
-    "latitude": 51.5074,
-    "longitude": -0.1278,
-    "timestamp": "2024-02-24T12:00:00Z",
-    "isAllowed": true,
-    "nearestLocationName": "Office Building",
-    "distanceToNearest": 45
-  }
-]
-```
+### Start Lunch Break
 
-## Error Responses
+**Endpoint:** `POST /api/session/lunch-start`
 
-All endpoints may return the following error responses:
+**Request Body:**
 
-**400 Bad Request:**
 ```json
 {
-  "error": "Missing required fields"
+    "traineeId": "1",
+    "lunchStart": "08:29 AM"
 }
 ```
 
-**401 Unauthorized:**
+**Response:**
+
 ```json
 {
-  "error": "Invalid or missing token"
+    "message": "Lunch start recorded",
+    "lunchStartTime": "08:30 AM"
 }
 ```
 
-**403 Forbidden:**
+**Authentication:** Requires Bearer Token
+
+---
+
+### End Lunch Break
+
+**Endpoint:** `POST /api/session/lunch-end`
+
+**Request Body:**
+
 ```json
 {
-  "error": "Insufficient permissions"
+    "traineeId": "1",
+    "lunchEnd": "08:30 AM"
 }
 ```
 
-**404 Not Found:**
+**Response:**
+
 ```json
 {
-  "error": "Location not found"
+    "message": "Lunch end recorded",
+    "lunchEndTime": "08:30 AM",
+    "lunchDurationMinutes": 3
 }
 ```
 
-**500 Internal Server Error:**
+**Authentication:** Requires Bearer Token
+
+---
+
+### Check-Out
+
+**Endpoint:** `POST /api/session/check-out`
+
+**Request Body:**
+
 ```json
 {
-  "error": "Failed to [operation]",
-  "details": "Error message"
+    "traineeId": "1",
+    "checkOut": "08:36 AM"
 }
 ```
 
-## Notes
-- All coordinates use decimal degrees (e.g., 51.5074°N, 0.1278°W)
-- Radius is specified in meters
-- Distances in responses are rounded to the nearest meter
-- The `active` flag in locations can be used to temporarily disable a geofence without deleting it
-- Location logs are automatically created for each validation attempt
+**Response:**
+
+```json
+{
+    "message": "Check-out successful",
+    "checkOutTime": "08:36 AM",
+    "totalHoursWorked": "0.27",
+    "totalLunchMinutes": 0
+}
+```
+
+**Authentication:** Requires Bearer Token
+
+---
+
+## Trainee Management
+
+### Get Trainees
+
+**Endpoint:** `GET /api/trainees`
+
+**Authentication:** Requires Bearer Token (Super Admin Only)
+
+---
+
+### Create Trainee
+
+**Endpoint:** `POST /api/trainees`
+
+**Request Body:**
+
+```json
+{
+    "gender": "female",
+    "surname": "Doekazi",
+    "idNumber": "3001015123456",
+    "phoneNumber": "+27123456789",
+    "email": "johnkazi.doe@example.com",
+    "name": "Johnkazi",
+    "age": 25,
+    "location": "soweto"
+}
+```
+
+**Authentication:** Requires Bearer Token
+
+---
+
+### Update Trainee
+
+**Endpoint:** `PUT /api/trainees/2`
+
+**Request Body:** Same as "Create Trainee"
+
+**Authentication:** Requires Bearer Token
+
+---
+
+## Facilitator Management
+
+### Get Facilitators
+
+**Endpoint:** `GET /api/facilitators`
+
+**Authentication:** Requires Bearer Token (Super Admin Only)
+
+---
+
+### Create Facilitator
+
+**Endpoint:** `POST /api/facilitators`
+
+**Request Body:**
+
+```json
+{
+    "surname": "KB",
+    "name": "Vin",
+    "email": "Vin@company.com",
+    "location": "kimberly",
+    "role": "facilitator"
+}
+```
+
+**Authentication:** Requires Bearer Token (Super Admin Only)
+
+---
+
+### Update Facilitator
+
+**Endpoint:** `POST /api/facilitators/:id`
+
+**Request Body:** Same as "Create Facilitator"
+
+**Authentication:** Requires Bearer Token (Super Admin Only)
+
+---
+
+## QR Code Verification
+
+### Verify QR Code
+
+**Endpoint:** `POST /api/QR/verify-QRcode`
+
+**Request Body:**
+
+```json
+{
+    "qrId": "1739951989684"
+}
+```
+
+**Response:**
+
+```json
+{
+    "success": true,
+    "message": "QR Code verified"
+}
+```
+
+**Authentication:** Requires Bearer Token (Super Admin Only)
+
+---
+
+## Session Status
+
+### Get Session Status
+
+**Endpoint:** `GET /api/session/session-status/:id`
+
+**Request Body:**
+
+```json
+{
+    "traineeId": "10"
+}
+```
+
+**Response:**
+
+```json
+{
+    "checkInTime": "08:29 AM",
+    "lastUpdated": 1740551355049,
+    "lunchStatus": "Working",
+    "name": "John Doe"
+}
+```
+
+**Authentication:** Requires Bearer Token (Super Admin Only)
+
+# Backend API Documentation
+
+## Base URL
+
+`https://timemanagementsystemserver.onrender.com`
+
+## Authentication
+
+### Login (Trainee)
+
+**Endpoint:** `POST /api/auth/loginT`
+
+**Request Body:**
+
+```json
+{
+    "email": "example@gmail.com",
+    "password": "blahblahblah23!"
+}
+```
+
+**Response:**
+
+```json
+{
+    "token": "<JWT_TOKEN>",
+    "user": "example@gmail.com",
+    "trainee": { <Trainee_Details> },
+    "traineeReports": { <Trainee_Reports> }
+}
+```
+
+---
+
+### Super Admin Login
+
+**Endpoint:** `POST /api/auth/login`
+
+**Request Body:**
+
+```json
+{
+    "email": "superadmin@example.com",
+    "password": "temporaryPassword123!"
+}
+```
+
+---
+
+## Attendance Management
+
+### Check-In
+
+**Endpoint:** `POST /api/session/check-in`
+
+**Request Body:**
+
+```json
+{
+    "traineeId": "10",
+    "name": "John Doe",
+    "location": "soweto",
+    "checkIn": "08:00"
+}
+```
+
+**Response:**
+
+```json
+{
+    "message": "Check-in successful",
+    "checkInTime": "08:29 AM"
+}
+```
+
+**Authentication:** Requires Bearer Token
+
+---
+
+### Start Lunch Break
+
+**Endpoint:** `POST /api/session/lunch-start`
+
+**Request Body:**
+
+```json
+{
+    "traineeId": "1",
+    "lunchStart": "08:29 AM"
+}
+```
+
+**Response:**
+
+```json
+{
+    "message": "Lunch start recorded",
+    "lunchStartTime": "08:30 AM"
+}
+```
+
+**Authentication:** Requires Bearer Token
+
+---
+
+### End Lunch Break
+
+**Endpoint:** `POST /api/session/lunch-end`
+
+**Request Body:**
+
+```json
+{
+    "traineeId": "1",
+    "lunchEnd": "08:30 AM"
+}
+```
+
+**Response:**
+
+```json
+{
+    "message": "Lunch end recorded",
+    "lunchEndTime": "08:30 AM",
+    "lunchDurationMinutes": 3
+}
+```
+
+**Authentication:** Requires Bearer Token
+
+---
+
+### Check-Out
+
+**Endpoint:** `POST /api/session/check-out`
+
+**Request Body:**
+
+```json
+{
+    "traineeId": "1",
+    "checkOut": "08:36 AM"
+}
+```
+
+**Response:**
+
+```json
+{
+    "message": "Check-out successful",
+    "checkOutTime": "08:36 AM",
+    "totalHoursWorked": "0.27",
+    "totalLunchMinutes": 0
+}
+```
+
+**Authentication:** Requires Bearer Token
+
+---
+
+## Trainee Management
+
+### Get Trainees
+
+**Endpoint:** `GET /api/trainees`
+
+**Authentication:** Requires Bearer Token (Super Admin Only)
+
+---
+
+### Create Trainee
+
+**Endpoint:** `POST /api/trainees`
+
+**Request Body:**
+
+```json
+{
+    "gender": "female",
+    "surname": "Doekazi",
+    "idNumber": "3001015123456",
+    "phoneNumber": "+27123456789",
+    "email": "johnkazi.doe@example.com",
+    "name": "Johnkazi",
+    "age": 25,
+    "location": "soweto"
+}
+```
+
+**Authentication:** Requires Bearer Token
+
+---
+
+### Update Trainee
+
+**Endpoint:** `PUT /api/trainees/2`
+
+**Request Body:** Same as "Create Trainee"
+
+**Authentication:** Requires Bearer Token
+
+---
+
+## Facilitator Management
+
+### Get Facilitators
+
+**Endpoint:** `GET /api/facilitators`
+
+**Authentication:** Requires Bearer Token (Super Admin Only)
+
+---
+
+### Create Facilitator
+
+**Endpoint:** `POST /api/facilitators`
+
+**Request Body:**
+
+```json
+{
+    "surname": "KB",
+    "name": "Vin",
+    "email": "Vin@company.com",
+    "location": "kimberly",
+    "role": "facilitator"
+}
+```
+
+**Authentication:** Requires Bearer Token (Super Admin Only)
+
+---
+
+### Update Facilitator
+
+**Endpoint:** `POST /api/facilitators/:id`
+
+**Request Body:** Same as "Create Facilitator"
+
+**Authentication:** Requires Bearer Token (Super Admin Only)
+
+---
+
+## QR Code Verification
+
+### Verify QR Code
+
+**Endpoint:** `POST /api/QR/verify-QRcode`
+
+**Request Body:**
+
+```json
+{
+    "qrId": "1739951989684"
+}
+```
+
+**Response:**
+
+```json
+{
+    "success": true,
+    "message": "QR Code verified"
+}
+```
+
+**Authentication:** Requires Bearer Token (Super Admin Only)
+
+---
+
+## Session Status
+
+### Get Session Status
+
+**Endpoint:** `GET /api/session/session-status/:id`
+
+**Request Body:**
+
+```json
+{
+    "traineeId": "10"
+}
+```
+
+**Response:**
+
+```json
+{
+    "checkInTime": "08:29 AM",
+    "lastUpdated": 1740551355049,
+    "lunchStatus": "Working",
+    "name": "John Doe"
+}
+```
+
+**Authentication:** Requires Bearer Token (Super Admin Only)
+
