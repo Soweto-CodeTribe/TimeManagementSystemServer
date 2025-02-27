@@ -16,6 +16,6 @@ router.delete("/trainees/:id",verifyToken, delete_User);
 router.get("/deletedTrainees",verifyToken, deleted_Users);
 
 router.get("/trainee", verifyToken, trainee_id);
-router.get("/profile-update", verifyToken, update_Trainee)
+router.put("/profile-update", verifyToken, update_Trainee)
 
 export default router;

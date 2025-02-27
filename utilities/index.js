@@ -17,6 +17,12 @@ export const verifyToken = async (req, res, next) => {
     // Set the complete decoded user information
     req.user = decoded;
     
+    // Decrypt the location from the token and pass it down
+    if (decoded.location) {
+      req.location = decoded.location;
+    }
+    // console.log(decoded);
+
     next();
   } catch (error) {
     return res.status(401).json({ error: "Token is not valid" });
