@@ -1,5 +1,17 @@
+import {
+    collection,
+    doc,
+    setDoc,
+    getDoc,
+    query,
+    where,
+    getDocs,
+    updateDoc,
+    addDoc,
+  } from "firebase/firestore";
 import { db, admin } from '../config/firebaseAdminConfig.js';
 import { getMessaging } from 'firebase-admin/messaging';
+import { isWorkingDay} from '../controllers/sessionController.js'
 
 // Store FCM tokens for users
 export const registerDeviceToken = async (req, res) => {
@@ -278,4 +290,192 @@ export const resetTraineeNotificationFields = async (traineeId) => {
         console.error('Error resetting trainee notification fields:', error);
         return false;
     }
+};
+
+
+
+// Detect and notify trainees who were absent yesterday
+export const notifyAbsentTrainees = async (req, res) => {
+    try {
+      // Get yesterday's date
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = yesterday.toISOString().split("T")[0];
+      
+      // Check if yesterday was a working day
+      const wasWorkingDay = await isWorkingDay(yesterday);
+      if (!wasWorkingDay) {
+        return res.status(200).json({ 
+          message: "No notifications sent. Yesterday was not a working day.",
+          date: yesterdayStr,
+          isWorkingDay: false
+        });
+      }
+      
+      // Get all trainees - FIXED: using admin SDK syntax
+      const traineesSnapshot = await db.collection("trainees").get();
+      
+      const absentTrainees = [];
+      const notificationResults = [];
+      const promises = [];
+      
+      traineesSnapshot.forEach((traineeDoc) => {
+        const trainee = { id: traineeDoc.id, ...traineeDoc.data() };
+        
+        // For each trainee, check if they were absent yesterday
+        const checkPromise = (async () => {
+          const reportRef = db.collection("reports").doc(trainee.id);
+          const reportDoc = await reportRef.get();
+          
+          // Check if trainee was absent yesterday (no report or has "Absent" status)
+          const wasAbsent = !reportDoc.exists || 
+                           !reportDoc.data()?.[yesterdayStr] || 
+                           reportDoc.data()?.[yesterdayStr]?.status === "Absent";
+          
+          if (wasAbsent) {
+            absentTrainees.push(trainee);
+            
+            // Get trainee's device tokens
+            const userTokens = await getUserTokens(trainee.id);
+            
+            if (userTokens.length > 0) {
+              // Create deep link or action data for the "Submit Proof" option
+              const actionData = {
+                type: 'absence_proof',
+                date: yesterdayStr,
+                traineeId: trainee.id,
+                action: 'submit_proof'
+              };
+              
+              // Send notification
+              const notificationSent = await sendPushNotification(userTokens, {
+                title: "Absence Notification",
+                body: `You were absent yesterday (${new Date(yesterdayStr).toLocaleDateString()}). Please submit proof of absence if available.`,
+                data: actionData
+              });
+              
+              // Record result
+              notificationResults.push({
+                traineeId: trainee.id,
+                name: trainee.name,
+                sent: notificationSent,
+                tokenCount: userTokens.length
+              });
+              
+              // Add to sent notifications collection
+              await db.collection("sentNotifications").add({
+                title: "Absence Notification",
+                body: `You were absent yesterday (${new Date(yesterdayStr).toLocaleDateString()}). Please submit proof of absence if available.`,
+                recipients: [trainee.id],
+                data: actionData,
+                results: [{ 
+                  userId: trainee.id, 
+                  sent: notificationSent, 
+                  tokenCount: userTokens.length 
+                }],
+                sentAt: admin.firestore.FieldValue.serverTimestamp(),
+                sentBy: 'system',
+                type: 'absence_reminder'
+              });
+              
+              // Update trainee's notification fields
+              await updateTraineeNotificationFields([trainee.id], `absence_${yesterdayStr}`);
+            } else {
+              notificationResults.push({
+                traineeId: trainee.id,
+                name: trainee.name,
+                sent: false,
+                tokenCount: 0,
+                reason: "No device tokens found"
+              });
+            }
+          }
+        })();
+        
+        promises.push(checkPromise);
+      });
+      
+      await Promise.all(promises);
+      
+      res.status(200).json({
+        message: "Absence notifications processed",
+        date: yesterdayStr,
+        absenteesCount: absentTrainees.length,
+        notificationsSent: notificationResults.filter(r => r.sent).length,
+        results: notificationResults
+      });
+    } catch (error) {
+      console.error("Absentee notification error:", error);
+      res.status(500).json({ error: "Failed to send absence notifications", details: error.message });
+    }
+  };
+
+
+// Handle proof of absence submissions
+export const submitAbsenceProof = async (req, res) => {
+  try {
+    const { traineeId, date, reason, proofUrl } = req.body;
+    
+    if (!traineeId || !date || !reason) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+    
+    // Create a document in the absenceProofs collection
+    await db.collection("absenceProofs").add({
+      traineeId,
+      date,
+      reason,
+      proofUrl: proofUrl || null,
+      submittedAt: admin.firestore.FieldValue.serverTimestamp(),
+      status: "pending" // pending, approved, rejected
+    });
+    
+    // Update the report with the absence reason - FIXED: using admin SDK syntax
+    const reportRef = db.collection("reports").doc(traineeId);
+    const reportDoc = await reportRef.get();
+    
+    if (reportDoc.exists) {
+      await reportRef.update({
+        [`${date}.absenceReason`]: reason,
+        [`${date}.absenceProofSubmitted`]: true
+      });
+    } else {
+      // Create the report entry if it doesn't exist
+      await reportRef.set({
+        [date]: {
+          date,
+          status: "Absent",
+          absenceReason: reason,
+          absenceProofSubmitted: true,
+          isWorkingDay: true,
+          totalHoursWorked: 0,
+          totalLunchMinutes: 0
+        }
+      }, { merge: true });
+    }
+    
+    // Also update the absenteeism record if it exists
+    const absenteeismSnapshot = await db.collection("absenteeism")
+      .where("traineeId", "==", traineeId)
+      .where("date", "==", date)
+      .get();
+    
+    if (!absenteeismSnapshot.empty) {
+      const absenteeismDoc = absenteeismSnapshot.docs[0];
+      await db.collection("absenteeism").doc(absenteeismDoc.id).update({
+        reason,
+        proofUrl: proofUrl || null,
+        proofSubmittedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    }
+    
+    res.status(200).json({
+      message: "Absence proof submitted successfully",
+      date,
+      traineeId
+    });
+  } catch (error) {
+    console.error("Absence proof submission error:", error);
+    res.status(500).json({ error: "Failed to submit absence proof", details: error.message });
+  }
 };

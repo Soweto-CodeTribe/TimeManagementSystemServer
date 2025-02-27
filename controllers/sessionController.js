@@ -260,7 +260,7 @@ export const formatDate = () => {
 };
 
 // Check if the given date is a working day in South Africa
-const isWorkingDay = async (date) => {
+export const isWorkingDay = async (date) => {
   // Format as YYYY-MM-DD
   const formattedDate = date instanceof Date 
     ? date.toISOString().split("T")[0] 

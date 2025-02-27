@@ -38,8 +38,10 @@ import {
   get_Trainee_Notification_Status
 } from "../controllers/notificationsController.js";
 import { 
-  registerDeviceToken, 
-  sendNotificationToRecipients 
+  registerDeviceToken,
+  sendNotificationToRecipients,
+  notifyAbsentTrainees,
+  submitAbsenceProof
 } from '../services/notificationService.js';
 import { isFacilitator } from "../middleware/auth.js";
 
@@ -59,5 +61,9 @@ router.get("/deletedMessages", verifyToken, isFacilitator, deleted_Messages);
 router.post("/registerToken", verifyToken, registerDeviceToken);
 router.post("/sendNotification", verifyToken, isFacilitator, sendNotificationToRecipients);
 router.get("/notifications/status/:traineeId", verifyToken, get_Trainee_Notification_Status);
+
+// Schedule/Absence notification routes
+router.post("/notifications/absent", verifyToken, isFacilitator, notifyAbsentTrainees);
+router.post("/absence/proof", verifyToken, submitAbsenceProof);
 
 export default router;
