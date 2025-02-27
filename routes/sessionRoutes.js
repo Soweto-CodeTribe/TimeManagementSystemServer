@@ -2,6 +2,7 @@ import express from "express";
 import {
   checkIn,
   checkOut,
+  getTraineesByLocation,
   lunchEnd,
   lunchStart,
   traineeStatus,
@@ -15,5 +16,6 @@ router.post("/lunch-start",verifyToken, lunchStart);
 router.post("/lunch-end",verifyToken, lunchEnd);
 router.post("/check-out",verifyToken, checkOut);
 router.get("/session-status/:id", verifyToken, traineeStatus);
+router.post("/session-status/", getTraineesByLocation);
 
 export default router;
