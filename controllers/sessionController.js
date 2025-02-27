@@ -323,10 +323,15 @@ export const checkIn = async (req, res) => {
   try {
     const { traineeId, name, checkInTime, location } = req.body;
 
-    console.log("Received Check-in Data:", { traineeId, name, checkInTime, location });
+    console.log("Received Check-in Data:", {
+      traineeId,
+      name,
+      checkInTime,
+      location,
+    });
 
     // Validate Required Fields
-    if (!traineeId || !name || !checkInTime) {
+    if (!traineeId || !name || !checkInTime || !location) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
@@ -387,8 +392,12 @@ export const checkIn = async (req, res) => {
 
 export const lunchStart = async (req, res) => {
   try {
-    const { traineeId } = req.body;
-    const lunchStartTime = formatTime();
+    const { traineeId, lunchStartTime } = req.body;
+    // const lunchStartTime = formatTime();
+
+    if (!traineeId || !lunchStartTime) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
 
     // Update Realtime Database
     await update(ref(rtdb, `liveTracking/${traineeId}`), {
@@ -430,8 +439,12 @@ export const lunchStart = async (req, res) => {
 
 export const lunchEnd = async (req, res) => {
   try {
-    const { traineeId } = req.body;
-    const lunchEndTime = formatTime();
+    const { traineeId, lunchEndTime } = req.body;
+    // const lunchEndTime = formatTime();
+
+    if (!traineeId || !lunchEndTime) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
 
     // Get current lunch start time from Realtime Database
     const rtdbSnapshot = await get(ref(rtdb, `liveTracking/${traineeId}`));
@@ -496,8 +509,12 @@ export const lunchEnd = async (req, res) => {
 
 export const checkOut = async (req, res) => {
   try {
-    const { traineeId } = req.body;
-    const checkOutTime = formatTime();
+    const { traineeId, checkOutTime } = req.body;
+    // const checkOutTime = formatTime();
+
+    if (!traineeId || !checkOutTime) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
 
     // Get current data from Realtime Database
     const rtdbSnapshot = await get(ref(rtdb, `liveTracking/${traineeId}`));
@@ -570,7 +587,32 @@ export const traineeStatus = async (req, res) => {
     res.status(500).json({ error: "Failed to get status" });
   }
 };
+export const getTraineesByLocation = async (req, res) => {
+  try {
+    const location = req.location;
 
+    if (!location) {
+      return res.status(400).json({ error: "Location is required" });
+    }
+
+    const traineesRef = ref(rtdb, 'liveTracking');
+    const snapshot = await get(traineesRef);
+    const traineesData = snapshot.val();
+
+    if (!traineesData) {
+      return res.status(404).json({ error: "No trainees found" });
+    }
+
+    const traineesAtLocation = Object.values(traineesData).filter(
+      trainee => trainee.location === location
+    );
+
+    res.status(200).json(traineesAtLocation);
+  } catch (error) {
+    console.error("Error fetching trainees by location:", error);
+    res.status(500).json({ error: "Failed to fetch trainees by location" });
+  }
+};
 // New controllers for the enhanced features
 export const recordAbsenteeism = async (req, res) => {
   try {
