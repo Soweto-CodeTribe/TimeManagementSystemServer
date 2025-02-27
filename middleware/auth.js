@@ -1,7 +1,7 @@
 // import admin from 'firebase-admin';
 // import Facilitator from '../models/facilitatorModels.js';
 import { db } from '../config/firebaseConfig.js';
-import { collection, query, where, getDocs,getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs,getDoc, doc } from 'firebase/firestore';
 
 
 //Middleware to check if user has super_admin privileges
