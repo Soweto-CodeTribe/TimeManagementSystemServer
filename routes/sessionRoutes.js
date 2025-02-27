@@ -44,7 +44,7 @@ router.post("/lunch-start", verifyToken, lunchStart);
 router.post("/lunch-end", verifyToken, lunchEnd);
 router.post("/check-out", verifyToken, checkOut);
 router.get("/session-status/:id", verifyToken, traineeStatus);
-router.post("/session-status/", getTraineesByLocation);
+router.post("/session-status/",verifyToken, getTraineesByLocation);
 
 // New routes for enhanced features
 router.post("/record-absenteeism", verifyToken, recordAbsenteeism);

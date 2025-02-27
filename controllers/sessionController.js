@@ -589,7 +589,7 @@ export const traineeStatus = async (req, res) => {
 };
 export const getTraineesByLocation = async (req, res) => {
   try {
-    const { location } = req.body;
+    const location = req.location;
 
     if (!location) {
       return res.status(400).json({ error: "Location is required" });
