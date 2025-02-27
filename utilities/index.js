@@ -21,7 +21,7 @@ export const verifyToken = async (req, res, next) => {
     if (decoded.location) {
       req.location = decoded.location;
     }
-    console.log(decoded);
+    // console.log(decoded);
 
     next();
   } catch (error) {
