@@ -86,7 +86,8 @@
 ```json
 {
     "traineeId": "1",
-    "lunchStart": "08:29 AM"
+    "lunchStart": "08:29 AM",
+    "lunchStartTime" : "12:30"
 }
 ```
 
@@ -95,7 +96,7 @@
 ```json
 {
     "message": "Lunch start recorded",
-    "lunchStartTime": "08:30 AM"
+    "lunchStartTime": "12:30 AM"
 }
 ```
 
@@ -112,7 +113,7 @@
 ```json
 {
     "traineeId": "1",
-    "lunchEnd": "08:30 AM"
+    "lunchEndTime": "08:30 AM"
 }
 ```
 
@@ -139,7 +140,7 @@
 ```json
 {
     "traineeId": "1",
-    "checkOut": "08:36 AM"
+    "checkOutTime": "08:36 AM"
 }
 ```
 
