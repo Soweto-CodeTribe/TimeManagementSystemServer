@@ -83,79 +83,79 @@ import {
     }
   };
   
+  
   // POST - Validate user location
-  export const validateLocation = async (req, res) => {
-    try {
-      const { latitude, longitude, userId } = req.body;
-  
-      if (!latitude || !longitude || !userId) {
-        return res.status(400).json({ error: "Missing required fields" });
-      }
-  
-      const locationsRef = collection(db, "allowedLocations");
-      const snapshot = await getDocs(locationsRef);
-      const locations = snapshot.docs.map(doc => doc.data());
-  
-      let isWithinAllowedArea = false;
-      let nearestLocation = null;
-      let shortestDistance = Infinity;
-  
-      for (const location of locations) {
-        if (!location.active) continue;
-  
-        const distance = calculateDistance(
-          latitude,
-          longitude,
-          location.latitude,
-          location.longitude
-        );
-  
-        if (distance < shortestDistance) {
-          shortestDistance = distance;
-          nearestLocation = location;
-        }
-  
-        if (distance <= location.radius) {
-          isWithinAllowedArea = true;
-          break;
-        }
-      }
-  
-      // Log the location check
-      const locationLogRef = doc(collection(db, "locationLogs"));
-      await setDoc(locationLogRef, {
-        userId,
+export const validateLocation = async (req, res) => {
+  try {
+    const { latitude, longitude } = req.body;
+
+    if (!latitude || !longitude) {
+      return res.status(400).json({ error: "Missing required coordinates" });
+    }
+
+    const locationsRef = collection(db, "allowedLocations");
+    const snapshot = await getDocs(locationsRef);
+    const locations = snapshot.docs.map(doc => doc.data());
+
+    let isWithinAllowedArea = false;
+    let nearestLocation = null;
+    let shortestDistance = Infinity;
+
+    for (const location of locations) {
+      if (!location.active) continue;
+
+      const distance = calculateDistance(
         latitude,
         longitude,
-        timestamp: serverTimestamp(),
-        isAllowed: isWithinAllowedArea,
-        nearestLocationName: nearestLocation?.name,
-        distanceToNearest: Math.round(shortestDistance)
-      });
-  
-      if (!isWithinAllowedArea) {
-        return res.status(403).json({
-          allowed: false,
-          message: "Location not within allowed area",
-          nearestLocation: nearestLocation?.name,
-          distance: Math.round(shortestDistance),
-          requiredDistance: Math.round(nearestLocation?.radius)
-        });
+        location.latitude,
+        location.longitude
+      );
+
+      if (distance < shortestDistance) {
+        shortestDistance = distance;
+        nearestLocation = location;
       }
-  
-      res.status(200).json({
-        allowed: true,
-        location: nearestLocation?.name,
-        distance: Math.round(shortestDistance)
-      });
-    } catch (error) {
-      console.error("Error validating location:", error);
-      res.status(500).json({ 
-        error: "Failed to validate location", 
-        details: error.message 
+
+      if (distance <= location.radius) {
+        isWithinAllowedArea = true;
+        break;
+      }
+    }
+
+    // Log the location check without userId
+    const locationLogRef = doc(collection(db, "locationLogs"));
+    await setDoc(locationLogRef, {
+      latitude,
+      longitude,
+      timestamp: serverTimestamp(),
+      isAllowed: isWithinAllowedArea,
+      nearestLocationName: nearestLocation?.name,
+      distanceToNearest: Math.round(shortestDistance)
+    });
+
+    if (!isWithinAllowedArea) {
+      return res.status(403).json({
+        allowed: false,
+        message: "Location not within allowed area",
+        nearestLocation: nearestLocation?.name,
+        distance: Math.round(shortestDistance),
+        requiredDistance: Math.round(nearestLocation?.radius)
       });
     }
-  };
+
+    res.status(200).json({
+      allowed: true,
+      location: nearestLocation?.name,
+      distance: Math.round(shortestDistance)
+    });
+  } catch (error) {
+    console.error("Error validating location:", error);
+    res.status(500).json({ 
+      error: "Failed to validate location", 
+      details: error.message 
+    });
+  }
+};
   
   // PUT - Update allowed location
   export const updateAllowedLocation = async (req, res) => {

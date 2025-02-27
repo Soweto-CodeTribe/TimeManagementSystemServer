@@ -1,5 +1,5 @@
 import { auth, db } from "../config/firebaseConfig.js";
-import { signInWithEmailAndPassword } from "firebase/auth";
+import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
 import generateToken from "../utilities/index.js";
 import { collection, query, where, getDocs } from "firebase/firestore";
 
