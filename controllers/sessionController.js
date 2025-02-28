@@ -260,7 +260,7 @@ export const formatDate = () => {
 };
 
 // Check if the given date is a working day in South Africa
-const isWorkingDay = async (date) => {
+export const isWorkingDay = async (date) => {
   // Format as YYYY-MM-DD
   const formattedDate = date instanceof Date 
     ? date.toISOString().split("T")[0] 
@@ -568,6 +568,33 @@ export const traineeStatus = async (req, res) => {
   } catch (error) {
     console.error("Status check error:", error);
     res.status(500).json({ error: "Failed to get status" });
+  }
+};
+
+export const getTraineesByLocation = async (req, res) => {
+  try {
+    const location = req.location;
+
+    if (!location) {
+      return res.status(400).json({ error: "Location is required" });
+    }
+
+    const traineesRef = ref(rtdb, 'liveTracking');
+    const snapshot = await get(traineesRef);
+    const traineesData = snapshot.val();
+
+    if (!traineesData) {
+      return res.status(404).json({ error: "No trainees found" });
+    }
+
+    const traineesAtLocation = Object.values(traineesData).filter(
+      trainee => trainee.location === location
+    );
+
+    res.status(200).json(traineesAtLocation);
+  } catch (error) {
+    console.error("Error fetching trainees by location:", error);
+    res.status(500).json({ error: "Failed to fetch trainees by location" });
   }
 };
 
