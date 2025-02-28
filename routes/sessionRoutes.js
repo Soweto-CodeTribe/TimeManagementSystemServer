@@ -22,6 +22,7 @@ import express from "express";
 import {
   checkIn,
   checkOut,
+  getTraineesByLocation,
   lunchEnd,
   lunchStart,
   traineeStatus,
