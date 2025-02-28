@@ -2,7 +2,8 @@
 // import Facilitator from '../models/facilitatorModels.js';
 import { db } from '../config/firebaseConfig.js';
 import { collection, query, where, getDocs,getDoc } from 'firebase/firestore';
-
+import { ref, get } from "firebase/database";
+import { rtdb } from "../config/firebaseConfig.js";
 
 //Middleware to check if user has super_admin privileges
 export const isSuperAdmin = async (req, res, next) => {
@@ -107,6 +108,34 @@ export const isFacilitator=async(req,res,next)=>{
   console.error('Facilitator check error',error)
   res.status(500).json({error:'Internal server error'})
 }
-
-
 }
+
+//middleware to check if you are indeed a trainee at a certain location
+
+export const getTraineesByLocation = async (req, res, next) => {
+  try {
+    const location = req.query.location;
+
+    if (!location) {
+      return res.status(400).json({ error: "Location is required" });
+    }
+
+    const traineesRef = ref(rtdb, 'liveTracking');
+    const snapshot = await get(traineesRef);
+    const traineesData = snapshot.val();
+
+    if (!traineesData) {
+      return res.status(404).json({ error: "No trainees found" });
+    }
+
+    const traineesAtLocation = Object.values(traineesData).filter(
+      trainee => trainee.location === location
+    );
+
+    req.traineesAtLocation = traineesAtLocation;
+    next();
+  } catch (error) {
+    console.error("Error fetching trainees by location:", error);
+    res.status(500).json({ error: "Failed to fetch trainees by location" });
+  }
+};
