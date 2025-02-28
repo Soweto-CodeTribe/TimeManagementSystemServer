@@ -1,11 +1,5 @@
-import express from 'express';
-import cors from 'cors';
-import bodyParser from 'body-parser';
-import multer from 'multer';
-import csvParser from 'csv-parser';
-import { Readable } from 'stream';
 import "dotenv/config";
-import { auth, db } from "./config/firebaseConfig.js";
+import { auth, db } from "../config/firebaseConfig.js";
 import {
   createUserWithEmailAndPassword,
   updateProfile,
@@ -22,20 +16,15 @@ import {
   runTransaction,
   serverTimestamp,
 } from "firebase/firestore";
-
-// Initialize Express app
-const app = express();
-const PORT = process.env.PORT || 3000;
+import multer from 'multer';
+import csvParser from 'csv-parser';
+import { Readable } from 'stream';
 
 // Configure multer for file uploads
 const upload = multer({ 
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
 });
-
-// Middleware
-app.use(cors());
-app.use(bodyParser.json());
 
 // Configuration
 const CONFIG = {
@@ -215,80 +204,8 @@ async function registerTraineesInBatches(trainees) {
   return results;
 }
 
-// API Routes
-
-
-// Register a single trainee
-app.post('/api/trainees', async (req, res) => {
-  try {
-    const trainee = req.body;
-    
-    // Validate required fields
-    const requiredFields = ['name', 'surname', 'email', 'phone', 'location', 'gender', 'age', 'idNumber'];
-    const missingFields = requiredFields.filter(field => !trainee[field]);
-    
-    if (missingFields.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: `Missing required fields: ${missingFields.join(', ')}`,
-      });
-    }
-    
-    const result = await registerTrainee(trainee);
-    
-    if (result.success) {
-      res.status(201).json(result);
-    } else if (result.status === 'skipped') {
-      res.status(409).json(result); // Conflict status code
-    } else {
-      res.status(400).json(result);
-    }
-  } catch (error) {
-    console.error('Error registering trainee:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Internal server error',
-      error: error.message,
-    });
-  }
-});
-
-// Register multiple trainees via JSON
-app.post('/api/trainees/batch', async (req, res) => {
-  try {
-    const { trainees } = req.body;
-    
-    if (!Array.isArray(trainees) || trainees.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Request must include an array of trainees',
-      });
-    }
-    
-    const results = await registerTraineesInBatches(trainees);
-    
-    res.status(200).json({
-      success: true,
-      summary: {
-        total: trainees.length,
-        successful: results.successful.length,
-        failed: results.failed.length,
-        skipped: results.skipped.length,
-      },
-      results
-    });
-  } catch (error) {
-    console.error('Error processing batch registration:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Internal server error',
-      error: error.message,
-    });
-  }
-});
-
-// Upload and process CSV file
-app.post('/api/trainees/upload-csv', upload.single('file'), async (req, res) => {
+//Uploading a csv file
+export const upload_trainee_csv = async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -359,12 +276,4 @@ app.post('/api/trainees/upload-csv', upload.single('file'), async (req, res) => 
       });
     }
   }
-});
-
-// Start the server
-// app.listen(PORT, () => {
-//   console.log(`Server running on port ${PORT}`);
-//   console.log(`CSV upload endpoint: http://localhost:${PORT}/api/trainees/upload-csv`);
-// });
-
-// export default app;
+};
