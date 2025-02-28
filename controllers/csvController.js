@@ -16,12 +16,12 @@ import {
   runTransaction,
   serverTimestamp,
 } from "firebase/firestore";
-import multer from 'multer';
-import csvParser from 'csv-parser';
-import { Readable } from 'stream';
+import multer from "multer";
+import csvParser from "csv-parser";
+import { Readable } from "stream";
 
 // Configure multer for file uploads
-const upload = multer({ 
+const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
 });
@@ -72,7 +72,7 @@ async function registerTrainee(trainee) {
     if (existsCheck.exists) {
       return {
         success: false,
-        status: 'skipped',
+        status: "skipped",
         message: `Trainee already exists with this ${existsCheck.reason}`,
       };
     }
@@ -113,7 +113,7 @@ async function registerTrainee(trainee) {
       traineeId: newTraineeId,
       uid,
       name: trainee.name,
-      surname: trainee.surname, 
+      surname: trainee.surname,
       email: trainee.email,
       phoneNumber: trainee.phone,
       location: trainee.location,
@@ -141,15 +141,14 @@ async function registerTrainee(trainee) {
 
     return {
       success: true,
-      status: 'success',
+      status: "success",
       trainee: savedTrainee,
       message: `User created successfully. A password reset email has been sent to ${trainee.email}`,
     };
-
   } catch (error) {
     return {
       success: false,
-      status: 'failed',
+      status: "failed",
       error: error.message,
     };
   }
@@ -160,12 +159,12 @@ async function parseCsvBuffer(buffer) {
   return new Promise((resolve, reject) => {
     const trainees = [];
     const stream = Readable.from(buffer);
-    
+
     stream
       .pipe(csvParser({ columns: true, trim: true }))
-      .on('data', (trainee) => trainees.push(trainee))
-      .on('error', (error) => reject(error))
-      .on('end', () => {
+      .on("data", (trainee) => trainees.push(trainee))
+      .on("error", (error) => reject(error))
+      .on("end", () => {
         resolve(trainees);
       });
   });
@@ -181,14 +180,14 @@ async function registerTraineesInBatches(trainees) {
 
   for (let i = 0; i < trainees.length; i += CONFIG.batchSize) {
     const batch = trainees.slice(i, i + CONFIG.batchSize);
-    
+
     // Process each trainee in batch sequentially to avoid Firebase auth errors
     for (const trainee of batch) {
       const result = await registerTrainee(trainee);
-      
+
       if (result.success) {
         results.successful.push(result);
-      } else if (result.status === 'skipped') {
+      } else if (result.status === "skipped") {
         results.skipped.push({ trainee, reason: result.message });
       } else {
         results.failed.push({ trainee, error: result.error });
@@ -197,7 +196,9 @@ async function registerTraineesInBatches(trainees) {
 
     // Add delay between batches to avoid rate limiting
     if (i + CONFIG.batchSize < trainees.length) {
-      await new Promise((resolve) => setTimeout(resolve, CONFIG.delayBetweenBatches));
+      await new Promise((resolve) =>
+        setTimeout(resolve, CONFIG.delayBetweenBatches)
+      );
     }
   }
 
@@ -207,71 +208,85 @@ async function registerTraineesInBatches(trainees) {
 //Uploading a csv file
 export const upload_trainee_csv = async (req, res) => {
   try {
+    console.log("Headers:", req.headers);
+    console.log("Files:", req.file);
+    console.log("Body:", req.body);
+
     if (!req.file) {
       return res.status(400).json({
         success: false,
-        message: 'No file uploaded',
+        message: "No file uploaded",
       });
     }
-    
+
     // Validate file type
-    if (!req.file.mimetype.includes('csv') && !req.file.mimetype.includes('text/plain')) {
+    if (
+      !req.file.mimetype.includes("csv") &&
+      !req.file.mimetype.includes("text/plain")
+    ) {
       return res.status(400).json({
         success: false,
-        message: 'File must be a CSV',
+        message: "File must be a CSV",
       });
     }
 
     // Parse CSV data
     const trainees = await parseCsvBuffer(req.file.buffer);
-    
+
     if (trainees.length === 0) {
       return res.status(400).json({
         success: false,
-        message: 'No valid trainee data found in CSV',
+        message: "No valid trainee data found in CSV",
       });
     }
 
     // Create a response that streams updates as they happen
-    res.setHeader('Content-Type', 'application/json');
+    res.setHeader("Content-Type", "application/json");
     res.status(202);
-    res.write(JSON.stringify({ 
-      success: true, 
-      message: `Processing ${trainees.length} trainees from CSV`,
-      totalTrainees: trainees.length
-    }) + '\n');
+    res.write(
+      JSON.stringify({
+        success: true,
+        message: `Processing ${trainees.length} trainees from CSV`,
+        totalTrainees: trainees.length,
+      }) + "\n"
+    );
 
     // Process trainees
     const results = await registerTraineesInBatches(trainees);
-    
+
     // Send final summary
-    res.write(JSON.stringify({
-      success: true,
-      summary: {
-        total: trainees.length,
-        successful: results.successful.length,
-        failed: results.failed.length,
-        skipped: results.skipped.length,
-      },
-      results
-    }));
-    
+    res.write(
+      JSON.stringify({
+        success: true,
+        summary: {
+          total: trainees.length,
+          successful: results.successful.length,
+          failed: results.failed.length,
+          skipped: results.skipped.length,
+        },
+        results,
+      })
+    );
+
     res.end();
   } catch (error) {
-    console.error('Error processing CSV upload:', error);
-    
+    console.error("Error in upload handler:", error);
+    console.error("Error processing CSV upload:", error);
+
     // If headers are already sent, we need to write the error as part of the stream
     if (res.headersSent) {
-      res.write(JSON.stringify({
-        success: false,
-        message: 'Error during processing',
-        error: error.message,
-      }));
+      res.write(
+        JSON.stringify({
+          success: false,
+          message: "Error during processing",
+          error: error.message,
+        })
+      );
       res.end();
     } else {
       res.status(500).json({
         success: false,
-        message: 'Error processing CSV file',
+        message: "Error processing CSV file",
         error: error.message,
       });
     }
