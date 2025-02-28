@@ -33,7 +33,7 @@ import {
   getMonthlyStats,
   getTraineeDailyReport,
   getWeeklyStats,
-  getTraineesByLocation
+  
   
 
 } from "../controllers/sessionController.js";
