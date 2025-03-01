@@ -292,7 +292,15 @@ export const isWorkingDay = async (date) => {
 };
 
 const checkTime = (checkInTime) => {
-  const [hours, minutes] = checkInTime.split(":").map(Number);
+  let [time, modifier] = checkInTime.split(" ");
+  let [hours, minutes] = time.split(":").map(Number);
+
+  if (modifier === "PM" && hours !== 12) {
+    hours += 12;
+  } else if (modifier === "AM" && hours === 12) {
+    hours = 0;
+  }
+
   const totalMinutes = hours * 60 + minutes;
 
   if (totalMinutes < 480) {
