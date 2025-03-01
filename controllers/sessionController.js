@@ -609,6 +609,7 @@ export const getTraineesByLocation = async (req, res) => {
     const traineesAtLocation = Object.values(traineesData).filter(
       trainee => trainee.location === location
     );
+    
 
     res.status(200).json(traineesAtLocation);
   } catch (error) {

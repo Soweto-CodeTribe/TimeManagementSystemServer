@@ -7,10 +7,10 @@ import {
     where,
   } from "firebase/firestore";
   import { db } from "../config/firebaseConfig.js";
-  import { isWorkingDay } from "./sessionController.js";  
+  import { isWorkingDay } from "./sessionController.js";
   
-  // Get all trainees' daily reports
-  export const getAllTraineesDailyReport = async (req, res) => {
+  // Get facilitator's trainees daily report
+  export const getFacilitatorTraineesDailyReport = async (req, res) => {
     try {
       const { date } = req.query;
       const reportDate = date || new Date().toISOString().split("T")[0];
@@ -18,16 +18,29 @@ import {
       // Check if it's a working day
       const workingDay = await isWorkingDay(reportDate);
   
-      // Get all trainees
-      const traineesQuery = query(collection(db, "trainees"));
-      const traineesSnapshot = await getDocs(traineesQuery);
+      // Get filtered trainees from middleware
+      const trainees = req.trainees || [];
+  
+      if (!trainees.length) {
+        return res.status(200).json({
+          summary: {
+            date: reportDate,
+            isWorkingDay: workingDay,
+            totalTrainees: 0,
+            presentCount: 0,
+            absentCount: 0,
+            lateCount: 0,
+            totalHoursWorked: "0.00",
+            averageHoursWorked: "0.00",
+          },
+          reports: [],
+        });
+      }
   
       const reports = [];
       const promises = [];
   
-      traineesSnapshot.forEach((traineeDoc) => {
-        const trainee = { id: traineeDoc.id, ...traineeDoc.data() };
-  
+      trainees.forEach((trainee) => {
         // For each trainee, get their report for the specified date
         const checkPromise = (async () => {
           const reportRef = doc(db, `reports/${trainee.id}`);
@@ -85,8 +98,8 @@ import {
     }
   };
   
-  // Get all trainees' weekly statistics
-  export const getAllTraineesWeeklyStats = async (req, res) => {
+  // Get facilitator's trainees weekly statistics
+  export const getFacilitatorTraineesWeeklyStats = async (req, res) => {
     try {
       const { weekStart, weekNumber, year } = req.query;
   
@@ -126,16 +139,13 @@ import {
       const startDateStr = startDate.toISOString().split("T")[0];
       const endDateStr = endDate.toISOString().split("T")[0];
   
-      // Get all trainees
-      const traineesQuery = query(collection(db, "trainees"));
-      const traineesSnapshot = await getDocs(traineesQuery);
+      // Get filtered trainees from middleware
+      const trainees = req.trainees || [];
   
       const weeklyStats = [];
       const promises = [];
   
-      traineesSnapshot.forEach((traineeDoc) => {
-        const trainee = { id: traineeDoc.id, ...traineeDoc.data() };
-  
+      trainees.forEach((trainee) => {
         const checkPromise = (async () => {
           const reportRef = doc(db, `reports/${trainee.id}`);
           const reportDoc = await getDoc(reportRef);
@@ -194,8 +204,8 @@ import {
     }
   };
   
-  // Get all trainees' monthly statistics
-  export const getAllTraineesMonthlyStats = async (req, res) => {
+  // Get facilitator's trainees monthly statistics
+  export const getFacilitatorTraineesMonthlyStats = async (req, res) => {
     try {
       const { month, year } = req.query;
   
@@ -208,16 +218,13 @@ import {
       const firstDayStr = firstDay.toISOString().split("T")[0];
       const lastDayStr = lastDay.toISOString().split("T")[0];
   
-      // Get all trainees
-      const traineesQuery = query(collection(db, "trainees"));
-      const traineesSnapshot = await getDocs(traineesQuery);
+      // Get filtered trainees from middleware
+      const trainees = req.trainees || [];
   
       const monthlyStats = [];
       const promises = [];
   
-      traineesSnapshot.forEach((traineeDoc) => {
-        const trainee = { id: traineeDoc.id, ...traineeDoc.data() };
-  
+      trainees.forEach((trainee) => {
         const checkPromise = (async () => {
           const reportRef = doc(db, `reports/${trainee.id}`);
           const reportDoc = await getDoc(reportRef);
@@ -276,8 +283,8 @@ import {
     }
   };
   
-  // Get all trainees' program statistics
-  export const getAllTraineesProgramStats = async (req, res) => {
+  // Get facilitator's trainees program statistics
+  export const getFacilitatorTraineesProgramStats = async (req, res) => {
     try {
       const { startDate, endDate } = req.query;
   
@@ -288,16 +295,13 @@ import {
       const startDateStr = programStart.toISOString().split("T")[0];
       const endDateStr = programEnd.toISOString().split("T")[0];
   
-      // Get all trainees
-      const traineesQuery = query(collection(db, "trainees"));
-      const traineesSnapshot = await getDocs(traineesQuery);
+      // Get filtered trainees from middleware
+      const trainees = req.trainees || [];
   
       const programStats = [];
       const promises = [];
   
-      traineesSnapshot.forEach((traineeDoc) => {
-        const trainee = { id: traineeDoc.id, ...traineeDoc.data() };
-  
+      trainees.forEach((trainee) => {
         const checkPromise = (async () => {
           const reportRef = doc(db, `reports/${trainee.id}`);
           const reportDoc = await getDoc(reportRef);
@@ -355,4 +359,3 @@ import {
       res.status(500).json({ error: "Failed to retrieve program statistics" });
     }
   };
-
