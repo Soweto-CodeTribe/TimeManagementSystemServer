@@ -688,7 +688,7 @@ export const getDailyReport = async (req, res) => {
     };
     res.status(200).json({
       summary,
-      reports,
+      paginatedReports,
       pagination: {
         currentPage: pageNumber,
         totalPages: Math.ceil(reports.length / limitNumber),
