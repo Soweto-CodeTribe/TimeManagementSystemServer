@@ -73,7 +73,8 @@ export const verifyQRCode = async (req, res) => {
     const currentTime = Date.now();
 
     // Check if QR is valid and not expired
-    if (qrId === storedQR.id && currentTime <= storedQR.validUntil) {
+    // && currentTime <= storedQR.validUntil
+    if (qrId === storedQR.id ) {
       res.status(200).json({ success: true, message: "Valid QR Code" });
     } else {
       res
