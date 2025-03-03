@@ -5,6 +5,7 @@ import "dotenv/config";
 import facilitatorRoutes from "./routes/facilitatoRoutes.js";
 import authRoutes from "./routes/index.js";
 import authCheck from "./routes/authCheck.js";
+import csvRoutes from "./routes/csvRoutes.js"
 import meetingRoutes from "./routes/meetingRoutes.js";
 import sessionRoutes from "./routes/sessionRoutes.js";
 import messageRoutes from "./routes/notificationRoutes.js";
@@ -21,6 +22,7 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 //Call function to auto generate QR codes daily
 scheduleQRCodeGeneration();
@@ -28,6 +30,7 @@ scheduleQRCodeGeneration();
 app.use("/api/auth/", authRoutes);
 app.use("/api/add-user/", authCheck);
 app.use("/api/facilitators", facilitatorRoutes);
+app.use("/api/csv", csvRoutes)
 app.use("/api/", authCheck);
 app.use("/api/", meetingRoutes);
 app.use("/api/session", sessionRoutes);
