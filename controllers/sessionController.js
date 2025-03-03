@@ -636,27 +636,31 @@ export const getTraineeDailyReport = async (req, res) => {
 //get all the trainee's reports, you can filter with the date
 export const getDailyReport = async (req, res) => {
   try {
-    const { date } = req.query;
+    const { date, page = 1, limit = 10 } = req.query;
     const reportDate = date || new Date().toISOString().split("T")[0];
-    
+    const pageNumber = parseInt(page, 10);
+    const limitNumber = parseInt(limit, 10);
+    // Validate pagination parameters
+    if (isNaN(pageNumber)) {
+      return res.status(400).json({ error: "Invalid page number" });
+    }
+    if (isNaN(limitNumber)) {
+      return res.status(400).json({ error: "Invalid limit value" });
+    }
+    // Rest of the function remains the same
     // Check if it's a working day
     const workingDay = await isWorkingDay(reportDate);
-    
     // Get all trainees
     const traineesQuery = query(collection(db, "trainees"));
     const traineesSnapshot = await getDocs(traineesQuery);
-    
     const reports = [];
     const promises = [];
-    
     traineesSnapshot.forEach((traineeDoc) => {
       const trainee = { id: traineeDoc.id, ...traineeDoc.data() };
-      
       // For each trainee, get their report for the specified date
       const checkPromise = (async () => {
         const reportRef = doc(db, `reports/${trainee.id}`);
         const reportDoc = await getDoc(reportRef);
-        
         if (reportDoc.exists() && reportDoc.data()?.[reportDate]) {
           reports.push({
             traineeId: trainee.id,
@@ -676,34 +680,44 @@ export const getDailyReport = async (req, res) => {
           });
         }
       })();
-      
       promises.push(checkPromise);
     });
-    
     await Promise.all(promises);
-    
+    // Pagination logic
+    const startIndex = (pageNumber - 1) * limitNumber;
+    const endIndex = pageNumber * limitNumber;
+    const paginatedReports = reports.slice(startIndex, endIndex);
     // Summary statistics
     const summary = {
       date: reportDate,
       isWorkingDay: workingDay,
       totalTrainees: reports.length,
-      presentCount: reports.filter(r => r.checkInTime).length,
-      absentCount: reports.filter(r => !r.checkInTime).length,
-      lateCount: reports.filter(r => r.status === "Late").length,
-      totalHoursWorked: reports.reduce((sum, r) => sum + (r.totalHoursWorked || 0), 0).toFixed(2),
-      averageHoursWorked: (reports.reduce((sum, r) => sum + (r.totalHoursWorked || 0), 0) / 
-                          Math.max(1, reports.filter(r => r.checkInTime).length)).toFixed(2),
+      presentCount: reports.filter((r) => r.checkInTime).length,
+      absentCount: reports.filter((r) => !r.checkInTime).length,
+      lateCount: reports.filter((r) => r.status === "Late").length,
+      totalHoursWorked: reports
+        .reduce((sum, r) => sum + (r.totalHoursWorked || 0), 0)
+        .toFixed(2),
+      averageHoursWorked: (
+        reports.reduce((sum, r) => sum + (r.totalHoursWorked || 0), 0) /
+        Math.max(1, reports.filter((r) => r.checkInTime).length)
+      ).toFixed(2),
     };
-    
     res.status(200).json({
       summary,
-      reports,
+      paginatedReports,
+      pagination: {
+        currentPage: pageNumber,
+        totalPages: Math.ceil(reports.length / limitNumber),
+        totalItems: reports.length,
+      },
     });
   } catch (error) {
     console.error("Daily report error:", error);
     res.status(500).json({ error: "Failed to generate daily report" });
   }
 };
+
 
 export const getWeeklyStats = async (req, res) => {
   try {
