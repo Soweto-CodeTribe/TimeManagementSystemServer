@@ -1,4 +1,3 @@
-
 import {
   collection,
   doc,
@@ -391,6 +390,24 @@ export const getTraineesByLocation = async (req, res) => {
     
 
     res.status(200).json(traineesAtLocation);
+  } catch (error) {
+    console.error("Error fetching trainees by location:", error);
+    res.status(500).json({ error: "Failed to fetch trainees by location" });
+  }
+};
+
+export const getLiveTrainees = async (req, res) => {
+  try {
+
+    const traineesRef = ref(rtdb, 'liveTracking');
+    const snapshot = await get(traineesRef);
+    const traineesData = snapshot.val();
+
+    if (!traineesData) {
+      return res.status(404).json({ error: "No trainees found" });
+    }
+
+    res.status(200).json(traineesData);
   } catch (error) {
     console.error("Error fetching trainees by location:", error);
     res.status(500).json({ error: "Failed to fetch trainees by location" });
