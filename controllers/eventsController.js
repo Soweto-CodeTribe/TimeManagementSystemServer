@@ -13,7 +13,7 @@ export const getEventQRcode = async (req, res) => {
     }
 
     const qrGuest = docSnap.data();
-    res.status(200).json(qrGuest);
+    res.status(200).json(qrGuest); 
   } catch (error) {
     console.error("Error fetching QR Code:", error);
     res.status(500).json({ message: "Internal Server Error" });
@@ -25,7 +25,6 @@ export const guestQR = async (req, res) => {
     const eventId = Date.now().toString(); // Unique event ID
     const eventData = { eventId, title, date, location, description };
 
-    // Store event in Firestore
     await setDoc(doc(db, "events", eventId), eventData);
 
     // Generate QR Code with event ID
@@ -74,13 +73,11 @@ export const guestCheckIn = async (req, res) => {
         const guestInfo = req.body;
         const checkInTime = formatTime();
     
-        // Verify event exists
         const eventDoc = await getDoc(doc(db, "events", eventId));
         if (!eventDoc.exists()) {
           return res.status(404).json({ error: "Event not found" });
         }
     
-        // Create guest check-in record
         const guestRef = doc(collection(db, "eventGuests"));
         await setDoc(guestRef, {
           guestId: guestRef.id,

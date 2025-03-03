@@ -33,9 +33,7 @@ import {
   getMonthlyStats,
   getTraineeDailyReport,
   getWeeklyStats,
-  
-  
-
+  getLiveTrainees,
 } from "../controllers/sessionController.js";
 import { verifyToken } from "../utilities/index.js";
 import { setBulkProgramStartDate, setProgramStartDate,getTraineeProgramInfo } from "../controllers/programStartDateController.js";
@@ -51,6 +49,7 @@ router.post("/lunch-end", verifyToken, lunchEnd);
 router.post("/check-out", verifyToken, checkOut);
 router.get("/session-status/:id", verifyToken, traineeStatus);
 router.post("/session-status/",verifyToken, getTraineesByLocation);
+router.get("/all-session-status/",verifyToken, getLiveTrainees);
 
 // New routes for enhanced features
 router.post("/record-absenteeism", verifyToken, recordAbsenteeism);
