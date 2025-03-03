@@ -619,7 +619,7 @@ export const getTraineeDailyReport = async (req, res) => {
 //get all the trainee's reports, you can filter with the date
 export const getDailyReport = async (req, res) => {
   try {
-    const { date, page = 1, limit = 10 } = req.query;
+    const { date, page = 1, limit = 5 } = req.query;
     const reportDate = date || new Date().toISOString().split("T")[0];
     const pageNumber = parseInt(page, 10);
     const limitNumber = parseInt(limit, 10);
