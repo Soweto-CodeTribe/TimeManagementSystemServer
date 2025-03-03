@@ -21,10 +21,27 @@ import csvParser from "csv-parser";
 import { Readable } from "stream";
 
 // Configure multer for file uploads
-const upload = multer({
+// const upload = multer({
+//   storage: multer.memoryStorage(),
+//   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+// });
+
+export const uploadMiddleware = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
-});
+  fileFilter: (req, file, cb) => {
+    // Only accept CSV files
+    if (
+      file.mimetype === 'text/csv' ||
+      file.mimetype === 'application/csv' ||
+      file.mimetype === 'text/plain'
+    ) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only CSV files are allowed.'));
+    }
+  }
+}).single('file'); // 'file' is the field name expected in the request
 
 // Configuration
 const CONFIG = {
@@ -62,7 +79,20 @@ async function checkTraineeExists(email, idNumber) {
 
 // Register a single trainee
 async function registerTrainee(trainee) {
+
+  console.log("Registering trainee:", trainee); 
+
   try {
+
+    const existsChecks = await checkTraineeExists(trainee.email, trainee.idNumber);
+    if (existsChecks.exists) {
+      console.log(`Skipping trainee: ${trainee.email} already exists as ${existsChecks.reason}`);
+      return {
+        success: false,
+        status: "skipped",
+        message: `Trainee already exists with this ${existsChecks.reason}`,
+      };
+    }
     // Check if trainee already exists
     const existsCheck = await checkTraineeExists(
       trainee.email,
@@ -167,11 +197,27 @@ async function parseCsvBuffer(buffer) {
       .on("end", () => {
         resolve(trainees);
       });
+      console.log("Parsed trainees:", trainees);
   });
 }
 
 // Process trainees in batches
 async function registerTraineesInBatches(trainees) {
+
+  console.log(`Starting batch processing for ${trainees.length} trainees`); 
+
+  for (let i = 0; i < trainees.length; i += CONFIG.batchSize) {
+    const batch = trainees.slice(i, i + CONFIG.batchSize);
+    console.log(`Processing batch ${Math.floor(i / CONFIG.batchSize) + 1}/${Math.ceil(trainees.length / CONFIG.batchSize)}`);
+    
+    for (const trainee of batch) {
+      console.log("Processing individual trainee:", trainee.email); // ADD THIS LOG
+
+      const result = await registerTrainee(trainee);
+      console.log("Trainee registration result:", result); // ADD THIS LOG
+    }
+  }
+
   const results = {
     successful: [],
     failed: [],
@@ -208,85 +254,84 @@ async function registerTraineesInBatches(trainees) {
 //Uploading a csv file
 export const upload_trainee_csv = async (req, res) => {
   try {
-    console.log("Headers:", req.headers);
-    console.log("Files:", req.file);
-    console.log("Body:", req.body);
-
-    if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        message: "No file uploaded",
-      });
-    }
-
-    // Validate file type
-    if (
-      !req.file.mimetype.includes("csv") &&
-      !req.file.mimetype.includes("text/plain")
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: "File must be a CSV",
-      });
-    }
-
-    // Parse CSV data
-    const trainees = await parseCsvBuffer(req.file.buffer);
-
-    if (trainees.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "No valid trainee data found in CSV",
-      });
-    }
-
-    // Create a response that streams updates as they happen
-    res.setHeader("Content-Type", "application/json");
-    res.status(202);
-    res.write(
-      JSON.stringify({
-        success: true,
-        message: `Processing ${trainees.length} trainees from CSV`,
-        totalTrainees: trainees.length,
-      }) + "\n"
-    );
-
-    // Process trainees
-    const results = await registerTraineesInBatches(trainees);
-
-    // Send final summary
-    res.write(
-      JSON.stringify({
-        success: true,
-        summary: {
-          total: trainees.length,
-          successful: results.successful.length,
-          failed: results.failed.length,
-          skipped: results.skipped.length,
-        },
-        results,
-      })
-    );
-
-    res.end();
-  } catch (error) {
-    console.error("Error in upload handler:", error);
-    console.error("Error processing CSV upload:", error);
-
-    // If headers are already sent, we need to write the error as part of the stream
-    if (res.headersSent) {
-      res.write(
-        JSON.stringify({
+    // Process the file using the middleware
+    uploadMiddleware(req, res, async (err) => {
+      // console.log("Files:", req.file);
+      console.log("Successfully Uploaded:", req.file)
+      if (err) {
+        return res.status(400).json({
           success: false,
-          message: "Error during processing",
-          error: error.message,
-        })
-      );
-      res.end();
-    } else {
+          message: err.message || "Error uploading file",
+        });
+      }
+      try {
+        if (!req.file) {
+          return res.status(400).json({
+            success: false,
+            message: "No file uploaded. Please select a CSV file.",
+          });
+        }
+        // Parse CSV data
+        const trainees = await parseCsvBuffer(req.file.buffer);
+        if (trainees.length === 0) {
+          return res.status(400).json({
+            success: false,
+            message: "No valid trainee data found in CSV",
+          });
+        }
+        // Create a response that streams updates as they happen
+        res.setHeader("Content-Type", "application/json");
+        res.status(202);
+        res.write(
+          JSON.stringify({
+            success: true,
+            message: `Processing ${trainees.length} trainees from CSV`,
+            totalTrainees: trainees.length,
+          }) + "\n"
+        );
+        // Process trainees
+        const results = await registerTraineesInBatches(trainees);
+        // Send final summary
+        res.write(
+          JSON.stringify({
+            success: true,
+            summary: {
+              total: trainees.length,
+              successful: results.successful.length,
+              failed: results.failed.length,
+              skipped: results.skipped.length,
+            },
+            results,
+          })
+        );
+        res.end();
+      } catch (processingError) {
+        console.error("Error processing CSV data:", processingError);
+        // If headers are already sent, we need to write the error as part of the stream
+        if (res.headersSent) {
+          res.write(
+            JSON.stringify({
+              success: false,
+              message: "Error during processing",
+              error: processingError.message,
+            })
+          );
+          res.end();
+        } else {
+          res.status(500).json({
+            success: false,
+            message: "Error processing CSV file",
+            error: processingError.message,
+          });
+        }
+      }
+    });
+  } catch (error) {
+    console.error("Unexpected error in upload handler:", error);
+    if (!res.headersSent) {
       res.status(500).json({
         success: false,
-        message: "Error processing CSV file",
+        message: "Server error processing request",
         error: error.message,
       });
     }
