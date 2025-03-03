@@ -853,6 +853,8 @@ export const getWeeklyStats = async (req, res) => {
           date: dateStr,
           dayOfWeek,
           attended: true,
+          lunchStartTime: dayData.lunchStartTime || "N/A",
+          lunchEndTime: dayData.lunchEndTime || "N/A",
           checkInTime: dayData.checkInTime,
           checkOutTime: dayData.checkOutTime || "N/A",
           hoursWorked: parseFloat(dayData.totalHoursWorked || 0).toFixed(2),
