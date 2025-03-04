@@ -18,6 +18,7 @@ import {
 } from "firebase/firestore";
 import multer from "multer";
 import csvParser from "csv-parser";
+import { format } from "fast-csv";
 import { Readable } from "stream";
 
 // Configure multer for file uploads
@@ -337,3 +338,42 @@ export const upload_trainee_csv = async (req, res) => {
     }
   }
 };
+
+
+// Endpoint to export trainees as CSV
+export const exportTraineesAsCSV = async (req, res) => {
+  try {
+    // Parse the selected fields from query params
+    const selectedFields = req.query.fields ? req.query.fields.split(",") : [];
+
+    // Fetch all trainees from Firestore
+    const traineesSnapshot = await getDocs(collection(db, "trainees"));
+    const trainees = traineesSnapshot.docs.map(doc => doc.data());
+
+    // If no fields are selected, return all fields
+    const csvData = trainees.map(trainee => {
+      let filteredData = {};
+      if (selectedFields.length === 0) {
+        return trainee; // Return all fields if none are specified
+      }
+      selectedFields.forEach(field => {
+        if (trainee[field] !== undefined) {
+          filteredData[field] = trainee[field]; // Include only selected fields
+        }
+      });
+      return filteredData;
+    });
+
+    // Set response headers for CSV download
+    res.setHeader("Content-Disposition", "attachment; filename=trainees.csv");
+    res.setHeader("Content-Type", "text/csv");
+
+    // Stream CSV data
+    format.writeToStream(res, csvData, { headers: true });
+
+  } catch (error) {
+    console.error("Error exporting trainees:", error);
+    res.status(500).json({ success: false, message: "Error exporting CSV", error: error.message });
+  }
+};
+
