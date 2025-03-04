@@ -18,7 +18,6 @@ import {
   deleteDoc,
 } from "firebase/firestore";
 import generateToken from "../utilities/index.js";
-import { generateStakeholderToken } from "../utilities/index.js";
 
 async function getTraineeStats(traineeId) {
   if (!traineeId) {
@@ -73,19 +72,6 @@ const getUserDocRef = async (uid) => {
       docRef: facilitatorDocRef,
       userType: "facilitator",
       data: facilitatorDoc.data(),
-    };
-  }
-
-
-  // Check if user is a stakeholder
-  const stakeholderDocRef = doc(db, "stakeholders", uid);
-  const stakeholderDoc = await getDoc(stakeholderDocRef);
-
-  if (stakeholderDoc.exists()) {
-    return {
-      docRef: stakeholderDocRef,
-      userType: "stakeholder",
-      data: stakeholderDoc.data(),
     };
   }
 
@@ -263,96 +249,6 @@ export const login_Trainee = async (req, res) => {
   }
 };
 
-
-export const stakeholderLogin = async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required' });
-    }
-    
-    // First, authenticate with Firebase Auth
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    const user = userCredential.user;
-    
-    // Get the user document
-    const userInfo = await getUserDocRef(user.uid);
-    
-    if (!userInfo || userInfo.userType !== 'stakeholder') {
-      return res.status(403).json({ 
-        error: 'Account is not a registered stakeholder',
-        requiresTokenRequest: true
-      });
-    }
-    
-    const stakeholderData = userInfo.data;
-    
-    // Check token status - they need to request a token
-    if (stakeholderData.tokenStatus !== 'active') {
-      return res.status(403).json({
-        error: 'You need to request access from a super admin',
-        stakeholderId: user.uid,
-        email: stakeholderData.email,
-        requiresTokenRequest: true
-      });
-    }
-    
-    // Check if 2FA is enabled for this stakeholder
-    if (stakeholderData.twoFactorEnabled === true) {
-      // Use the existing 2FA flow
-      const verificationCode = generateVerificationCode();
-
-      // Store the verification code in Firestore with an expiration time
-      const verificationRef = await addDoc(
-        collection(db, "verificationCodes"),
-        {
-          userId: user.uid,
-          userType: "stakeholder",
-          code: verificationCode,
-          createdAt: serverTimestamp(),
-          expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes expiration
-          used: false,
-        }
-      );
-
-      return res.status(200).json({
-        requires2FA: true,
-        verificationId: verificationRef.id,
-        verificationCode, // For testing only - remove in production
-        message: "Multi-factor authentication required.",
-      });
-    }
-    
-    // 2FA not enabled, proceed with normal login
-    // Update token timestamp
-    await updateDoc(userInfo.docRef, {
-      tokenLastUpdated: serverTimestamp()
-    });
-    
-    // Generate a 24-hour access token
-    const token = generateStakeholderToken({
-      uid: user.uid,
-      email: stakeholderData.email,
-      name: stakeholderData.name
-    });
-    
-    res.json({
-      uid: user.uid,
-      email: stakeholderData.email,
-      name: stakeholderData.name,
-      role: 'stakeholder',
-      accessToken: token,
-      expiresIn: '24 hours'
-    });
-    
-  } catch (error) {
-    console.error('Stakeholder login error:', error);
-    res.status(401).json({ error: 'Invalid credentials' });
-  }
-};
-
-
 export const enable2FA = async (req, res) => {
   const { phoneNumber } = req.body;
 
@@ -485,40 +381,6 @@ export const verify2FA = async (req, res) => {
         traineeReports: reports,
       });
     }
-
-
-    // If verification successful and user is a stakeholder
-  if (verificationData.userType === "stakeholder") {
-    // Get stakeholder data that's already retrieved
-    const stakeholderData = { id: userInfo.docRef.id, ...userInfo.data };
-    
-    // Check token status
-    if (stakeholderData.tokenStatus !== 'active') {
-      return res.status(403).json({
-        error: 'Your access token is not active',
-        requiresTokenRequest: true
-      });
-    }
-    
-    // Update token timestamp
-    await updateDoc(userInfo.docRef, {
-      tokenLastUpdated: serverTimestamp()
-    });
-    
-    // Generate stakeholder token
-    const token = generateStakeholderToken({
-      uid: userId,
-      email: stakeholderData.email,
-      name: stakeholderData.name
-    });
-    
-    return res.status(200).json({
-      ...baseResponse,
-      role: 'stakeholder',
-      accessToken: token,
-      expiresIn: '24 hours'
-    });
-  }
 
     // For non-trainee users, return just the base response
     return res.status(200).json(baseResponse);
