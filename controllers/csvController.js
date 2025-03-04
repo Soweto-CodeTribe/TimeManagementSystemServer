@@ -377,3 +377,42 @@ export const exportTraineesAsCSV = async (req, res) => {
   }
 };
 
+// Export CSV for a specific trainee
+export const exportTraineeAsCSV = async (req, res) => {
+  try {
+    const traineeId = req.params.id; // Get trainee ID from the URL
+    const selectedFields = req.query.fields ? req.query.fields.split(",") : [];
+
+    // Fetch trainee document from Firestore
+    const traineeRef = doc(db, "trainees", traineeId);
+    const traineeSnap = await getDoc(traineeRef);
+
+    if (!traineeSnap.exists()) {
+      return res.status(404).json({ success: false, message: "Trainee not found" });
+    }
+
+    // Get trainee data
+    let trainee = traineeSnap.data();
+
+    // If specific fields are requested, filter them
+    if (selectedFields.length > 0) {
+      trainee = selectedFields.reduce((filtered, field) => {
+        if (trainee[field] !== undefined) {
+          filtered[field] = trainee[field];
+        }
+        return filtered;
+      }, {});
+    }
+
+    // Set response headers for CSV download
+    res.setHeader("Content-Disposition", `attachment; filename=trainee_${traineeId}.csv`);
+    res.setHeader("Content-Type", "text/csv");
+
+    // Stream the CSV response
+    format.writeToStream(res, [trainee], { headers: true });
+
+  } catch (error) {
+    console.error("Error exporting trainee CSV:", error);
+    res.status(500).json({ success: false, message: "Error exporting CSV", error: error.message });
+  }
+};

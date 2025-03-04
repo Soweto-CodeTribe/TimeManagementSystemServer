@@ -2,7 +2,7 @@ import express from "express";
 
 import { verifyToken } from "../utilities/index.js";
 import { isSuperAdmin } from "../middleware/auth.js";
-import { upload_trainee_csv, exportTraineesAsCSV } from "../controllers/csvController.js";
+import { upload_trainee_csv, exportTraineesAsCSV, exportTraineeAsCSV } from "../controllers/csvController.js";
 
 const router = express.Router();
 
@@ -15,5 +15,7 @@ router.post(
 );
 
 router.get("/export-trainees", exportTraineesAsCSV);
+router.get("/export-trainees/:id", exportTraineeAsCSV);
+
 
 export default router;
