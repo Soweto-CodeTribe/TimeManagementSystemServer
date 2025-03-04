@@ -3,7 +3,7 @@ import express from "express";
 import { verifyToken } from "../utilities/index.js";
 import { create_user, delete_User, update_User, deleted_Users, get_Users, get_Users_By_Location } from "../controllers/userController.js";
 import { trainee_id, update_Trainee } from '../controllers/traineeController.js';
-import {  isSuperAdmin} from '../middleware/auth.js';
+import {  isSuperAdmin, completeStakeholderAccess} from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -17,5 +17,10 @@ router.get("/deletedTrainees",verifyToken, deleted_Users);
 
 router.get("/trainee", verifyToken, trainee_id);
 router.put("/profile-update", verifyToken, update_Trainee)
+
+
+// Stakeholder read-only routes
+router.get("/trainees", completeStakeholderAccess, get_Users);
+router.get("/my-trainees", completeStakeholderAccess, get_Users_By_Location);
 
 export default router;

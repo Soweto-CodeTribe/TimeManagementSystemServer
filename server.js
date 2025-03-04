@@ -12,6 +12,8 @@ import geofencingRoutes from "./routes/geofencingRoutes.js";
 import qrCodeRoutes from "./routes/qrCodeRoutes.js";
 import ticketRoutes from "./routes/ticketsRoutes.js";
 import eventsRoutes from "./routes/eventsRoutes.js";
+import csvRoutes from './routes/csvRoutes.js';
+import stakeholderRoutes from './routes/stakeholderRoutes.js';
 import { scheduleQRCodeGeneration } from "./controllers/qrCodeController.js";
 
 const PORT = process.env.PORT;
@@ -34,6 +36,8 @@ app.use("/api/", geofencingRoutes);
 app.use("/api/QR", qrCodeRoutes);
 app.use("/api/tickets", ticketRoutes);
 app.use("/api/guests", eventsRoutes);
+app.use("/api/", csvRoutes);
+app.use("/api/stakeholder", stakeholderRoutes);
 
 app.all("*", (req, res) => res.send("error 404 page not found"));
 

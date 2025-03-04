@@ -38,7 +38,7 @@ import {
 } from "../controllers/sessionController.js";
 import { verifyToken } from "../utilities/index.js";
 import { setBulkProgramStartDate, setProgramStartDate,getTraineeProgramInfo } from "../controllers/programStartDateController.js";
-
+import { completeStakeholderAccess } from "../middleware/auth.js";
 
 
 const router = express.Router();
@@ -64,5 +64,15 @@ router.get("/weekly-stats", verifyToken, getWeeklyStats);
 router.post("/set-program-date", verifyToken, setProgramStartDate);
 router.post("/set-bulk-program-date", verifyToken, setBulkProgramStartDate);
 router.get("/trainee-program-info/:traineeId", verifyToken, getTraineeProgramInfo);
+
+
+// Stakeholder read-only routes
+router.get("/session-status/:id", completeStakeholderAccess, traineeStatus);
+router.get("/trainee-history", completeStakeholderAccess, getTraineeHistory);
+router.get("/daily-report", completeStakeholderAccess, getDailyReport);
+router.get("/trainee-daily-report/:traineeId", completeStakeholderAccess, getTraineeDailyReport);
+router.get("/monthly-stats", completeStakeholderAccess, getMonthlyStats);
+router.get("/program-stats", completeStakeholderAccess, getProgramStats);
+router.get("/weekly-stats", completeStakeholderAccess, getWeeklyStats);
 
 export default router;

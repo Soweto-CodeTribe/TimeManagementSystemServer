@@ -1,5 +1,5 @@
 import express from 'express';
-import {  isSuperAdmin } from '../middleware/auth.js';
+import {  isSuperAdmin, completeStakeholderAccess } from '../middleware/auth.js';
 import { verifyToken } from '../utilities/index.js';
 import {
   createFacilitator,
@@ -19,5 +19,9 @@ router.put('/:id', verifyToken, updateFacilitator);
 router.delete('/:id', verifyToken, isSuperAdmin, deleteFacilitator);
 router.post('/change-password', verifyToken, changePassword);
 
+
+// Stakeholder read-only routes
+router.get('/', completeStakeholderAccess, getAllFacilitators);
+router.get('/:id', completeStakeholderAccess, getFacilitator);
 
 export default router;
