@@ -2,7 +2,7 @@
 // import Facilitator from '../models/facilitatorModels.js';
 import { db } from '../config/firebaseConfig.js';
 import { collection, query, where, getDocs,getDoc, doc } from 'firebase/firestore';
-
+import { stakeholderAccess} from '../utilities/index.js';
 
 //Middleware to check if user has super_admin privileges
 export const isSuperAdmin = async (req, res, next) => {
@@ -110,3 +110,35 @@ export const isFacilitator=async(req,res,next)=>{
 
 
 }
+
+
+// Middleware to verify stakeholder in database
+export const verifyStakeholderInDb = async (req, res, next) => {
+  try {
+    // Ensure req.user exists from token verification
+    if (!req.user || !req.user.uid) {
+      return res.status(401).json({ error: 'Unauthorized: No user found' });
+    }
+    
+    // Verify that the user is actually a stakeholder in our database
+    const stakeholderQuery = query(
+      collection(db, 'stakeholders'),
+      where('uid', '==', req.user.uid)
+    );
+    
+    const stakeholderSnapshot = await getDocs(stakeholderQuery);
+    
+    if (stakeholderSnapshot.empty) {
+      return res.status(403).json({ error: 'Invalid stakeholder: Not found in database' });
+    }
+    
+    next();
+  } catch (error) {
+    console.error('Stakeholder database check error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+
+// Combined middleware for complete stakeholder access (verification + database check + read-only)
+export const completeStakeholderAccess = [stakeholderAccess, verifyStakeholderInDb];
