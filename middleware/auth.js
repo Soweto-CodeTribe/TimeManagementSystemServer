@@ -1,8 +1,9 @@
-// import admin from 'firebase-admin';
-// import Facilitator from '../models/facilitatorModels.js';
 import { db } from '../config/firebaseConfig.js';
 import { collection, query, where, getDocs,getDoc, doc } from 'firebase/firestore';
 import { stakeholderAccess} from '../utilities/index.js';
+
+import { ref, get } from "firebase/database";
+import { rtdb } from "../config/firebaseConfig.js";
 
 //Middleware to check if user has super_admin privileges
 export const isSuperAdmin = async (req, res, next) => {
@@ -46,33 +47,37 @@ export const isFacilitatorLocationTrainee = async (req, res, next) => {
 
     // Check Firestore for user role
     const facilitatorRef = doc(db, 'facilitators', req.user.uid);
-            const facilitatorDoc = await getDoc(facilitatorRef);
-    
-            if (!facilitatorDoc.exists()) {
-                return res.status(403).json({ error: 'Unauthorized: Not a facilitator' });
-            }
-    
-            const facilitatorLocation = facilitatorDoc.data().location;
-            console.log("facilitator location: ", facilitatorLocation)
-    
-            if (!facilitatorLocation) {
-                return res.status(400).json({ error: 'Facilitator location not set' });
-            }
-    
-            // Query trainees collection with location filter
-            const traineesRef = collection(db, "trainees");
-            const locationQuery = query(traineesRef, where("location", "==", facilitatorLocation));
-            const snapshot = await getDocs(locationQuery);
-    
-            const trainees = snapshot.docs.map((doc) => ({
-                id: doc.id,
-                ...doc.data(),
-            }));
-    
-        next();
-        
+    const facilitatorDoc = await getDoc(facilitatorRef);
+
+    if (!facilitatorDoc.exists()) {
+      return res.status(403).json({ error: 'Unauthorized: Not a facilitator' });
+    }
+
+    const facilitatorLocation = facilitatorDoc.data().location;
+    console.log("facilitator location: ", facilitatorLocation);
+
+    if (!facilitatorLocation) {
+      return res.status(400).json({ error: 'Facilitator location not set' });
+    }
+
+    // Query trainees collection with location filter
+    const traineesRef = collection(db, "trainees");
+    const locationQuery = query(traineesRef, where("location", "==", facilitatorLocation));
+    const snapshot = await getDocs(locationQuery);
+    console.log(locationQuery);
+
+    const trainees = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+    console.log(trainees);
+
+    // Attach trainees to req object
+    req.trainees = trainees;
+
+    next();
   } catch (error) {
-    console.error('Super admin check error:', error);
+    console.error('Trainee fetching error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -107,9 +112,37 @@ export const isFacilitator=async(req,res,next)=>{
   console.error('Facilitator check error',error)
   res.status(500).json({error:'Internal server error'})
 }
-
-
 }
+
+//middleware to check if you are indeed a trainee at a certain location
+export const getTraineesByLocations = async (req, res, next) => {
+  try {
+    const location = req.query.location;
+
+    if (!location) {
+      return res.status(400).json({ error: "Location is required" });
+    }
+
+    const traineesRef = ref(rtdb, 'liveTracking');
+    const snapshot = await get(traineesRef);
+    const traineesData = snapshot.val();
+
+    if (!traineesData) {
+      return res.status(404).json({ error: "No trainees found" });
+    }
+
+    const traineesAtLocation = Object.values(traineesData).filter(
+      trainee => trainee.location === location
+    );
+
+    req.traineesAtLocation = traineesAtLocation;
+    next();
+  } catch (error) {
+    console.error("Error fetching trainees by location:", error);
+    res.status(500).json({ error: "Failed to fetch trainees by location" });
+  }
+};
+
 
 
 // Middleware to verify stakeholder in database
@@ -142,3 +175,4 @@ export const verifyStakeholderInDb = async (req, res, next) => {
 
 // Combined middleware for complete stakeholder access (verification + database check + read-only)
 export const completeStakeholderAccess = [stakeholderAccess, verifyStakeholderInDb];
+

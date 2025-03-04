@@ -1,14 +1,20 @@
 import express from "express";
-import { getAllEvents, getEvent, guestCheckIn, guestQR } from "../controllers/eventsController.js";
+import {
+  getAllEvents,
+  getEvent,
+  getEventQRcode,
+  guestCheckIn,
+  guestQR,
+} from "../controllers/eventsController.js";
 import { verifyToken } from "../utilities/index.js";
 import { isFacilitator, completeStakeholderAccess } from "../middleware/auth.js";
 
 const router = express.Router();
 
-router.post("/generate-event-QR",verifyToken,isFacilitator, guestQR);
-router.get("/event/:eventId",verifyToken,isFacilitator, getEvent)
-router.get("/all-events/",verifyToken, isFacilitator,getAllEvents)
-router.post("/event/:eventId/check-in",verifyToken,isFacilitator, guestCheckIn)
+router.post("/generate-event-QR", verifyToken, isFacilitator, guestQR);
+router.get("/event/:eventId", getEvent);
+router.get("/all-events/", getEventQRcode);
+router.post("/event/:eventId/check-in", guestCheckIn);
 
 
 // Stakeholder read-only routes

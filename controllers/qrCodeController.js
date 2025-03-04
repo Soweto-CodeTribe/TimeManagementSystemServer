@@ -21,7 +21,7 @@ export const generateQRCode = async () => {
     // Generate new QR ID
     const qrId = Date.now().toString();
     const expiration = new Date();
-    expiration.setHours(16, 59, 59, 999); // Expire at end of the day
+    expiration.setHours(23, 59, 59, 999); // Expire at end of the day
 
     const qrData = {
       id: qrId,
@@ -73,7 +73,8 @@ export const verifyQRCode = async (req, res) => {
     const currentTime = Date.now();
 
     // Check if QR is valid and not expired
-    if (qrId === storedQR.id && currentTime <= storedQR.validUntil) {
+    // && currentTime <= storedQR.validUntil
+    if (qrId === storedQR.id ) {
       res.status(200).json({ success: true, message: "Valid QR Code" });
     } else {
       res
@@ -91,7 +92,7 @@ export function scheduleQRCodeGeneration() {
   const now = new Date();
   const next1AM = new Date(now);
 
-  next1AM.setHours(1, 0, 0, 0); // Set time to 1:00 AM
+  next1AM.setHours(8, 31, 0, 0); // Set time to 1:00 AM
   if (next1AM < now) {
     next1AM.setDate(next1AM.getDate() + 1); // Move to next day if it's past 1 AM
   }

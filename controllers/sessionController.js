@@ -1,233 +1,3 @@
-// import {
-//   collection,
-//   doc,
-//   setDoc,
-//   getDoc,
-//   query,
-//   where,
-//   getDocs,
-//   updateDoc,
-// } from "firebase/firestore";
-// import { ref, set, get, update } from "firebase/database";
-// import { db, rtdb } from "../config/firebaseConfig.js";
-
-// export const formatTime = () => {
-//   return new Date().toLocaleTimeString("en-US", {
-//     timeZone: "Africa/Johannesburg",
-//     hour: "2-digit",
-//     minute: "2-digit",
-//     hour12: true,
-//   });
-// };
-
-// const checkTime = (checkInTime) => {
-//   const [hours, minutes] = checkInTime.split(":").map(Number);
-//   const totalMinutes = hours * 60 + minutes;
-
-//   if (totalMinutes < 480) {
-//     return "Early";
-//   } else if (totalMinutes >= 481 && totalMinutes <= 490) {
-//     return "Within grace period";
-//   } else if (totalMinutes > 496) {
-//     return "Late";
-//   } else {
-//     return "On time";
-//   }
-// };
-
-// const getTodayReportDoc = async (traineeId) => {
-//   const today = new Date().toISOString().split("T")[0];
-//   const reportRef = doc(db, `reports/${traineeId}`);
-//   const reportDoc = await getDoc(reportRef);
-
-//   if (!reportDoc.exists()) {
-//     // Initialize the document if it doesn't exist
-//     await setDoc(reportRef, {}, { merge: true });
-//   }
-
-//   return { ref: reportRef, today };
-// };
-
-// export const checkIn = async (req, res) => {
-//   try {
-//     const { traineeId, name, checkInTime, location } = req.body;
-
-//     console.log("Received Check-in Data:", { traineeId, name, checkInTime, location });
-
-//     // Validate Required Fields
-//     if (!traineeId || !name || !checkInTime) {
-//       return res.status(400).json({ error: "Missing required fields" });
-//     }
-
-//     const timestamp = Date.now();
-
-//     // Update Realtime Database
-//     await set(ref(rtdb, `liveTracking/${traineeId}`), {
-//       name,
-//       checkInTime,
-//       location: location || "Unknown",
-//       lunchStatus: "Working",
-//       lastUpdated: timestamp,
-//     });
-
-//     // Create or update today's report in Firestore
-//     const { ref: reportRef, today } = await getTodayReportDoc(traineeId);
-//     await setDoc(
-//       reportRef,
-//       {
-//         [today]: {
-//           date: today,
-//           checkInTime,
-//           location: location || "Unknown",
-//           totalHoursWorked: 0,
-//           totalLunchMinutes: 0,
-//           name,
-//         },
-//       },
-//       { merge: true }
-//     );
-
-//     const timeStatus = checkTime(checkInTime);
-
-//     res.status(200).json({ message: "Check-in successful", checkInTime, timeStatus });
-//   } catch (error) {
-//     console.error("Check-in error:", error);
-//     res.status(500).json({ error: "Failed to check in" });
-//   }
-// };
-
-
-// export const lunchStart = async (req, res) => {
-//   try {
-//     const { traineeId } = req.body;
-//     const lunchStartTime = formatTime();
-
-//     // Update Realtime Database
-//     await update(ref(rtdb, `liveTracking/${traineeId}`), {
-//       lunchStatus: "At Lunch",
-//       lunchStartTime,
-//       lastUpdated: Date.now(),
-//     });
-
-//     // Update today's report in Firestore
-//     const { ref: reportRef, today } = await getTodayReportDoc(traineeId);
-//     await updateDoc(reportRef, {
-//       [`${today}.lunchStartTime`]: lunchStartTime,
-//     });
-
-//     res.status(200).json({ message: "Lunch start recorded", lunchStartTime });
-//   } catch (error) {
-//     console.error("Lunch start error:", error);
-//     res.status(500).json({ error: "Failed to record lunch start" });
-//   }
-// };
-
-// export const lunchEnd = async (req, res) => {
-//   try {
-//     const { traineeId } = req.body;
-//     const lunchEndTime = formatTime();
-
-//     // Get current lunch start time from Realtime Database
-//     const rtdbSnapshot = await get(ref(rtdb, `liveTracking/${traineeId}`));
-//     const rtdbData = rtdbSnapshot.val();
-
-//     if (!rtdbData?.lunchStartTime) {
-//       throw new Error("No lunch start time found");
-//     }
-
-//     // Calculate lunch duration in minutes
-//     const lunchStart = new Date(`2000/01/01 ${rtdbData.lunchStartTime}`);
-//     const lunchEnd = new Date(`2000/01/01 ${lunchEndTime}`);
-//     const lunchDurationMinutes = Math.round(
-//       (lunchEnd - lunchStart) / (1000 * 60)
-//     );
-
-//     // Update Realtime Database
-//     await update(ref(rtdb, `liveTracking/${traineeId}`), {
-//       lunchStatus: "Working",
-//       lunchEndTime,
-//       lastUpdated: Date.now(),
-//     });
-
-//     // Update today's report in Firestore
-//     const { ref: reportRef, today } = await getTodayReportDoc(traineeId);
-//     await updateDoc(reportRef, {
-//       [`${today}.lunchEndTime`]: lunchEndTime,
-//       [`${today}.totalLunchMinutes`]: lunchDurationMinutes,
-//     });
-
-//     res.status(200).json({
-//       message: "Lunch end recorded",
-//       lunchEndTime,
-//       lunchDurationMinutes,
-//     });
-//   } catch (error) {
-//     console.error("Lunch end error:", error);
-//     res.status(500).json({ error: "Failed to record lunch end" });
-//   }
-// };
-
-// export const checkOut = async (req, res) => {
-//   try {
-//     const { traineeId } = req.body;
-//     const checkOutTime = formatTime();
-
-//     // Get current data from Realtime Database
-//     const rtdbSnapshot = await get(ref(rtdb, `liveTracking/${traineeId}`));
-//     const rtdbData = rtdbSnapshot.val();
-
-//     if (!rtdbData?.checkInTime) {
-//       throw new Error("No check-in time found");
-//     }
-
-//     // Calculate total hours worked
-//     const checkInTime = new Date(`2000/01/01 ${rtdbData.checkInTime}`);
-//     const checkOut = new Date(`2000/01/01 ${checkOutTime}`);
-//     let totalMinutes = Math.round((checkOut - checkInTime) / (1000 * 60));
-
-//     // Get today's report document
-//     const { ref: reportRef, today } = await getTodayReportDoc(traineeId);
-//     const reportDoc = await getDoc(reportRef);
-//     const todayData = reportDoc.data()?.[today] || {};
-
-//     // Subtract lunch time if applicable
-//     const totalLunchMinutes = todayData.totalLunchMinutes || 0;
-//     const totalHours = ((totalMinutes - totalLunchMinutes) / 60).toFixed(2);
-
-//     // Update Firestore report
-//     await updateDoc(reportRef, {
-//       [`${today}.checkOutTime`]: checkOutTime,
-//       [`${today}.totalHoursWorked`]: parseFloat(totalHours),
-//     });
-
-//     // Remove from Realtime Database
-//     await set(ref(rtdb, `liveTracking/${traineeId}`), null);
-
-//     res.status(200).json({
-//       message: "Check-out successful",
-//       checkOutTime,
-//       totalHoursWorked: totalHours,
-//       totalLunchMinutes,
-//     });
-//   } catch (error) {
-//     console.error("Check-out error:", error);
-//     res.status(500).json({ error: "Failed to check out" });
-//   }
-// };
-
-// export const traineeStatus = async (req, res) => {
-//   try {
-//     const { traineeId } = req.body;
-//     const snapshot = await get(ref(rtdb, `liveTracking/${traineeId}`));
-//     const status = snapshot.val();
-
-//     res.status(200).json(status || { message: "Not checked in" });
-//   } catch (error) {
-//     console.error("Status check error:", error);
-//     res.status(500).json({ error: "Failed to get status" });
-//   }
-// };
-
 import {
   collection,
   doc,
@@ -260,6 +30,7 @@ export const formatDate = () => {
 };
 
 // Check if the given date is a working day in South Africa
+
 export const isWorkingDay = async (date) => {
   // Format as YYYY-MM-DD
   const formattedDate = date instanceof Date 
@@ -291,7 +62,15 @@ export const isWorkingDay = async (date) => {
 };
 
 const checkTime = (checkInTime) => {
-  const [hours, minutes] = checkInTime.split(":").map(Number);
+  let [time, modifier] = checkInTime.split(" ");
+  let [hours, minutes] = time.split(":").map(Number);
+
+  if (modifier === "PM" && hours !== 12) {
+    hours += 12;
+  } else if (modifier === "AM" && hours === 12) {
+    hours = 0;
+  }
+
   const totalMinutes = hours * 60 + minutes;
 
   if (totalMinutes < 480) {
@@ -587,6 +366,8 @@ export const traineeStatus = async (req, res) => {
     res.status(500).json({ error: "Failed to get status" });
   }
 };
+
+
 export const getTraineesByLocation = async (req, res) => {
   try {
     const location = req.location;
@@ -606,6 +387,7 @@ export const getTraineesByLocation = async (req, res) => {
     const traineesAtLocation = Object.values(traineesData).filter(
       trainee => trainee.location === location
     );
+    
 
     res.status(200).json(traineesAtLocation);
   } catch (error) {
@@ -613,6 +395,25 @@ export const getTraineesByLocation = async (req, res) => {
     res.status(500).json({ error: "Failed to fetch trainees by location" });
   }
 };
+
+export const getLiveTrainees = async (req, res) => {
+  try {
+
+    const traineesRef = ref(rtdb, 'liveTracking');
+    const snapshot = await get(traineesRef);
+    const traineesData = snapshot.val();
+
+    if (!traineesData) {
+      return res.status(404).json({ error: "No trainees found" });
+    }
+
+    res.status(200).json(traineesData);
+  } catch (error) {
+    console.error("Error fetching trainees by location:", error);
+    res.status(500).json({ error: "Failed to fetch trainees by location" });
+  }
+};
+
 // New controllers for the enhanced features
 export const recordAbsenteeism = async (req, res) => {
   try {
@@ -835,27 +636,31 @@ export const getTraineeDailyReport = async (req, res) => {
 //get all the trainee's reports, you can filter with the date
 export const getDailyReport = async (req, res) => {
   try {
-    const { date } = req.query;
+    const { date, page = 1, limit = 5 } = req.query;
     const reportDate = date || new Date().toISOString().split("T")[0];
-    
+    const pageNumber = parseInt(page, 10);
+    const limitNumber = parseInt(limit, 10);
+    // Validate pagination parameters
+    if (isNaN(pageNumber)) {
+      return res.status(400).json({ error: "Invalid page number" });
+    }
+    if (isNaN(limitNumber)) {
+      return res.status(400).json({ error: "Invalid limit value" });
+    }
+    // Rest of the function remains the same
     // Check if it's a working day
     const workingDay = await isWorkingDay(reportDate);
-    
     // Get all trainees
     const traineesQuery = query(collection(db, "trainees"));
     const traineesSnapshot = await getDocs(traineesQuery);
-    
     const reports = [];
     const promises = [];
-    
     traineesSnapshot.forEach((traineeDoc) => {
       const trainee = { id: traineeDoc.id, ...traineeDoc.data() };
-      
       // For each trainee, get their report for the specified date
       const checkPromise = (async () => {
         const reportRef = doc(db, `reports/${trainee.id}`);
         const reportDoc = await getDoc(reportRef);
-        
         if (reportDoc.exists() && reportDoc.data()?.[reportDate]) {
           reports.push({
             traineeId: trainee.id,
@@ -875,34 +680,44 @@ export const getDailyReport = async (req, res) => {
           });
         }
       })();
-      
       promises.push(checkPromise);
     });
-    
     await Promise.all(promises);
-    
+    // Pagination logic
+    const startIndex = (pageNumber - 1) * limitNumber;
+    const endIndex = pageNumber * limitNumber;
+    const paginatedReports = reports.slice(startIndex, endIndex);
     // Summary statistics
     const summary = {
       date: reportDate,
       isWorkingDay: workingDay,
       totalTrainees: reports.length,
-      presentCount: reports.filter(r => r.checkInTime).length,
-      absentCount: reports.filter(r => !r.checkInTime).length,
-      lateCount: reports.filter(r => r.status === "Late").length,
-      totalHoursWorked: reports.reduce((sum, r) => sum + (r.totalHoursWorked || 0), 0).toFixed(2),
-      averageHoursWorked: (reports.reduce((sum, r) => sum + (r.totalHoursWorked || 0), 0) / 
-                          Math.max(1, reports.filter(r => r.checkInTime).length)).toFixed(2),
+      presentCount: reports.filter((r) => r.checkInTime).length,
+      absentCount: reports.filter((r) => !r.checkInTime).length,
+      lateCount: reports.filter((r) => r.status === "Late").length,
+      totalHoursWorked: reports
+        .reduce((sum, r) => sum + (r.totalHoursWorked || 0), 0)
+        .toFixed(2),
+      averageHoursWorked: (
+        reports.reduce((sum, r) => sum + (r.totalHoursWorked || 0), 0) /
+        Math.max(1, reports.filter((r) => r.checkInTime).length)
+      ).toFixed(2),
     };
-    
     res.status(200).json({
       summary,
-      reports,
+      paginatedReports,
+      pagination: {
+        currentPage: pageNumber,
+        totalPages: Math.ceil(reports.length / limitNumber),
+        totalItems: reports.length,
+      },
     });
   } catch (error) {
     console.error("Daily report error:", error);
     res.status(500).json({ error: "Failed to generate daily report" });
   }
 };
+
 
 export const getWeeklyStats = async (req, res) => {
   try {
@@ -1038,6 +853,8 @@ export const getWeeklyStats = async (req, res) => {
           date: dateStr,
           dayOfWeek,
           attended: true,
+          lunchStartTime: dayData.lunchStartTime || "N/A",
+          lunchEndTime: dayData.lunchEndTime || "N/A",
           checkInTime: dayData.checkInTime,
           checkOutTime: dayData.checkOutTime || "N/A",
           hoursWorked: parseFloat(dayData.totalHoursWorked || 0).toFixed(2),
@@ -1401,4 +1218,4 @@ export const getProgramStats = async (req, res) => {
     console.error("Program stats error:", error);
     res.status(500).json({ error: "Failed to retrieve program statistics" });
   }
-};
+}

@@ -5,7 +5,12 @@ import {
   createStakeholder,
   getAllStakeholders,
   getStakeholder,
-  deleteStakeholder
+  deleteStakeholder,
+  generateNewToken,
+  requestNewToken,
+  getTokenRequests,
+  approveTokenRequest,
+  rejectTokenRequest
 } from '../controllers/stakeholderController.js';
 
 const router = express.Router();
