@@ -4,6 +4,7 @@ import {
   signInWithCredential,
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
+  RecaptchaVerifier
 } from "firebase/auth";
 import {
   doc,
@@ -366,35 +367,44 @@ export const enable2FA = async (req, res) => {
       return res.status(401).json({ message: "User not authenticated" });
     }
 
-    // Generate a reCAPTCHA token to verify the user
-    const recaptchaVerifier = new RecaptchaVerifier(
-      "recaptcha-container",
-      {
-        size: "invisible",
-      },
-      auth
-    );
-    await recaptchaVerifier.render();
-
-    // Send verification SMS
-    const phoneProvider = new PhoneAuthProvider(auth);
-    const verificationId = await phoneProvider.verifyPhoneNumber(
-      phoneNumber,
-      recaptchaVerifier
-    );
-
-    // Store the verification ID in Firestore for later verification
+    // Get the user's information
     const userInfo = await getUserDocRef(user.uid);
+    if (!userInfo) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Generate a 6-digit verification code
+    const verificationCode = generateVerificationCode();
+
+    // Store the verification code in Firestore with an expiration time
+    const verificationRef = await addDoc(
+      collection(db, "verificationCodes"),
+      {
+        userId: user.uid,
+        userType: userInfo.userType,
+        phoneNumber: phoneNumber,
+        code: verificationCode,
+        createdAt: serverTimestamp(),
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes expiration
+        used: false,
+      }
+    );
+
+    // Update user document to prepare for 2FA
     await updateDoc(userInfo.docRef, {
       phoneNumber: phoneNumber,
       twoFactorEnabled: true,
-      verificationId: verificationId,
+      verificationId: verificationRef.id,
       updatedAt: serverTimestamp(),
     });
 
     return res.status(200).json({
-      message: "2FA has been enabled successfully",
-      verificationId: verificationId,
+      message: "Verification code generated",
+      verificationId: verificationRef.id,
+      phoneNumber: phoneNumber,
+      // In production, DO NOT send the actual code back
+      // This is just for testing purposes
+      verificationCode: verificationCode 
     });
   } catch (error) {
     console.error("Enable 2FA error:", error);
