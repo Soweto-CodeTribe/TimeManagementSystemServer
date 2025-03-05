@@ -10,7 +10,7 @@ const router = express.Router();
 router.get("/create-user",verifyToken, ()=>{console.log("user created")});
 
 router.get("/trainees", 
-    // verifyToken, 
+    verifyToken, 
     // isSuperAdmin, 
     get_Users);
 
