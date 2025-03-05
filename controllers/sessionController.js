@@ -639,7 +639,7 @@ export const getDailyReport = async (req, res) => {
     const { date, page = 1, limit = 5 } = req.query;
     const reportDate = date || new Date().toISOString().split("T")[0];
     const pageNumber = parseInt(page, 10);
-    const limitNumber = parseInt(limit, 10);
+    const limitNumber = parseInt(limit, 5);
     // Validate pagination parameters
     if (isNaN(pageNumber)) {
       return res.status(400).json({ error: "Invalid page number" });

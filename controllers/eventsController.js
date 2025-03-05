@@ -77,21 +77,20 @@ export const getAllEvents = async (req, res) => {
 
 export const guestCheckIn = async (req, res) => {
   try {
-    const { eventId } = req.params;
+    // const { eventId } = req.params;
     const guestInfo = req.body;
     const checkInTime = formatTime();
 
-    const eventDoc = await getDoc(doc(db, "events", eventId));
-    if (!eventDoc.exists()) {
-      return res.status(404).json({ error: "Event not found" });
-    }
-
+    // const eventDoc = await getDoc(doc(db, "events", eventId));
+    // if (!eventDoc.exists()) {
+    //   return res.status(404).json({ error: "Event not found" });
+    // }
 
     const guestRef = doc(collection(db, "eventGuests"));
     await setDoc(guestRef, {
       guestId: guestRef.id,
-      eventId,
-      eventName: eventDoc.data().title,
+      // eventId,
+      // eventName: eventDoc.data().title,
       checkInTime,
       checkInDate: new Date().toISOString().split("T")[0],
       ...guestInfo,

@@ -14,7 +14,7 @@ const router = express.Router();
 router.post("/generate-event-QR", verifyToken, isFacilitator, guestQR);
 router.get("/event/:eventId", getEvent);
 router.get("/all-events/", getEventQRcode);
-router.post("/event/:eventId/check-in", guestCheckIn);
+router.post("/event/check-in", guestCheckIn);
 
 
 // Stakeholder read-only routes
