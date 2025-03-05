@@ -30,7 +30,7 @@ app.use(express.urlencoded({ extended: true }));
 scheduleQRCodeGeneration();
 
 //function to auto check out trainees
-autoCheckOutTrainees()
+// autoCheckOutTrainees()
 
 app.use("/api/auth/", authRoutes);
 app.use("/api/add-user/", authCheck);
