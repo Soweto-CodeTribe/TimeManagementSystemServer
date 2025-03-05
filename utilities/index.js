@@ -2,7 +2,7 @@ import jwt from "jsonwebtoken";
 import secreteKey from "../config/jwtConfig.js";
 
 const generateToken = (userData) => {
-  return jwt.sign(userData, secreteKey, { expiresIn: "1h" });
+  return jwt.sign(userData, secreteKey, { expiresIn: "9h" });
 };
 
 

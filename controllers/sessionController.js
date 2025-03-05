@@ -33,26 +33,31 @@ export const formatDate = () => {
 
 export const isWorkingDay = async (date) => {
   // Format as YYYY-MM-DD
-  const formattedDate = date instanceof Date 
-    ? date.toISOString().split("T")[0] 
-    : new Date(date).toISOString().split("T")[0];
-  
+  const formattedDate =
+    date instanceof Date
+      ? date.toISOString().split("T")[0]
+      : new Date(date).toISOString().split("T")[0];
+
   const dayOfWeek = new Date(formattedDate).getDay();
-  
+
   // Weekend check (0 = Sunday, 6 = Saturday)
   if (dayOfWeek === 0 || dayOfWeek === 6) {
     return false;
   }
-  
+
   // Check if it's a holiday using Nager.Date API
   try {
     const year = formattedDate.split("-")[0];
 
-    const response = await axios.get(`https://date.nager.at/api/v3/PublicHolidays/${year}/ZA`);
-    
+    const response = await axios.get(
+      `https://date.nager.at/api/v3/PublicHolidays/${year}/ZA`
+    );
+
     const holidays = response.data;
-    const isHoliday = holidays.some(holiday => holiday.date === formattedDate);
-    
+    const isHoliday = holidays.some(
+      (holiday) => holiday.date === formattedDate
+    );
+
     return !isHoliday;
   } catch (error) {
     console.error("Error checking holidays:", error);
@@ -109,20 +114,30 @@ export const checkIn = async (req, res) => {
       location,
     });
 
-    // Validate Required Fields
     if (!traineeId || !name || !checkInTime || !location) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
     const timestamp = Date.now();
     const today = new Date().toISOString().split("T")[0];
-    
+
     // Check if today is a working day
     const workingDay = await isWorkingDay(today);
     if (!workingDay) {
-      return res.status(200).json({ 
-        message: "Check-in recorded, but today is not a working day", 
-        isWorkingDay: false 
+      return res.status(200).json({
+        message: "Check-in recorded, but today is not a working day",
+        isWorkingDay: false,
+      });
+    }
+
+    // Check if trainee already has a record for today in RTDB
+    const rtdbSnapshot = await get(ref(rtdb, `liveTracking/${traineeId}`));
+    const rtdbData = rtdbSnapshot.val();
+
+    if (rtdbData && rtdbData.currentDate === today) {
+      return res.status(200).json({
+        message: `${rtdbData.name} you have already checked in at ${rtdbData.checkInTime}`,
+        checkInTime: rtdbData.checkInTime,
       });
     }
 
@@ -137,9 +152,11 @@ export const checkIn = async (req, res) => {
     });
 
     // Create or update today's report in Firestore
-    const { ref: reportRef, today: reportDate } = await getTodayReportDoc(traineeId);
+    const { ref: reportRef, today: reportDate } = await getTodayReportDoc(
+      traineeId
+    );
     const timeStatus = checkTime(checkInTime);
-    
+
     await setDoc(
       reportRef,
       {
@@ -157,11 +174,11 @@ export const checkIn = async (req, res) => {
       { merge: true }
     );
 
-    res.status(200).json({ 
-      message: "Check-in successful", 
-      checkInTime, 
+    res.status(200).json({
+      message: "Check-in successful",
+      checkInTime,
       timeStatus,
-      isWorkingDay: true 
+      isWorkingDay: true,
     });
   } catch (error) {
     console.error("Check-in error:", error);
@@ -173,6 +190,16 @@ export const lunchStart = async (req, res) => {
   try {
     const { traineeId, lunchStartTime } = req.body;
     // const lunchStartTime = formatTime();
+
+    const rtdbSnapshot = await get(ref(rtdb, `liveTracking/${traineeId}`));
+    const rtdbData = rtdbSnapshot.val();
+
+    if (rtdbData && rtdbData.lunchStartTime) {
+      return res.status(200).json({
+        message: `${rtdbData.name} you have already went to lunch at ${rtdbData.lunchStartTime}`,
+        checkInTime: rtdbData.checkInTime,
+      });
+    }
 
     if (!traineeId || !lunchStartTime) {
       return res.status(400).json({ error: "Missing required fields" });
@@ -191,24 +218,22 @@ export const lunchStart = async (req, res) => {
       [`${today}.lunchStartTime`]: lunchStartTime,
     });
 
-    // Calculate real-time worked hours before lunch
-    const rtdbSnapshot = await get(ref(rtdb, `liveTracking/${traineeId}`));
-    const rtdbData = rtdbSnapshot.val();
-
     if (rtdbData?.checkInTime) {
       const checkInTime = new Date(`2000/01/01 ${rtdbData.checkInTime}`);
       const lunchStart = new Date(`2000/01/01 ${lunchStartTime}`);
-      const minutesWorkedBeforeLunch = Math.round((lunchStart - checkInTime) / (1000 * 60));
-      
+      const minutesWorkedBeforeLunch = Math.round(
+        (lunchStart - checkInTime) / (1000 * 60)
+      );
+
       // Update real-time hours worked
       await update(ref(rtdb, `liveTracking/${traineeId}`), {
         currentHoursWorked: (minutesWorkedBeforeLunch / 60).toFixed(2),
       });
     }
 
-    res.status(200).json({ 
-      message: "Lunch start recorded", 
-      lunchStartTime 
+    res.status(200).json({
+      message: "Lunch start recorded",
+      lunchStartTime,
     });
   } catch (error) {
     console.error("Lunch start error:", error);
@@ -221,13 +246,19 @@ export const lunchEnd = async (req, res) => {
     const { traineeId, lunchEndTime } = req.body;
     // const lunchEndTime = formatTime();
 
+    const rtdbSnapshot = await get(ref(rtdb, `liveTracking/${traineeId}`));
+    const rtdbData = rtdbSnapshot.val();
+
+    if (rtdbData && rtdbData.lunchEndTime) {
+      return res.status(200).json({
+        message: `${rtdbData.name} you have already went to lunch and came back at ${rtdbData.lunchEndTime}`,
+        checkInTime: rtdbData.checkInTime,
+      });
+    }
+
     if (!traineeId || !lunchEndTime) {
       return res.status(400).json({ error: "Missing required fields" });
     }
-
-    // Get current lunch start time from Realtime Database
-    const rtdbSnapshot = await get(ref(rtdb, `liveTracking/${traineeId}`));
-    const rtdbData = rtdbSnapshot.val();
 
     if (!rtdbData?.lunchStartTime) {
       throw new Error("No lunch start time found");
@@ -236,10 +267,13 @@ export const lunchEnd = async (req, res) => {
     // Calculate lunch duration in minutes
     const lunchStart = new Date(`2000/01/01 ${rtdbData.lunchStartTime}`);
     const lunchEnd = new Date(`2000/01/01 ${lunchEndTime}`);
-    const lunchDurationMinutes = Math.round((lunchEnd - lunchStart) / (1000 * 60));
+    const lunchDurationMinutes = Math.round(
+      (lunchEnd - lunchStart) / (1000 * 60)
+    );
 
     // Update current total lunch minutes
-    const currentTotalLunch = (rtdbData.totalLunchMinutes || 0) + lunchDurationMinutes;
+    const currentTotalLunch =
+      (rtdbData.totalLunchMinutes || 0) + lunchDurationMinutes;
 
     // Update Realtime Database
     await update(ref(rtdb, `liveTracking/${traineeId}`), {
@@ -251,15 +285,16 @@ export const lunchEnd = async (req, res) => {
 
     // Update today's report in Firestore
     const { ref: reportRef, today } = await getTodayReportDoc(traineeId);
-    
+
     // Get current total lunch minutes from Firestore
     const reportDoc = await getDoc(reportRef);
     const todayData = reportDoc.data()?.[today] || {};
     const previousLunchMinutes = todayData.totalLunchMinutes || 0;
-    
+
     await updateDoc(reportRef, {
       [`${today}.lunchEndTime`]: lunchEndTime,
-      [`${today}.totalLunchMinutes`]: previousLunchMinutes + lunchDurationMinutes,
+      [`${today}.totalLunchMinutes`]:
+        previousLunchMinutes + lunchDurationMinutes,
     });
 
     // Calculate and update real-time hours worked
@@ -267,8 +302,11 @@ export const lunchEnd = async (req, res) => {
       const checkInTime = new Date(`2000/01/01 ${rtdbData.checkInTime}`);
       const now = new Date(`2000/01/01 ${lunchEndTime}`);
       const totalMinutesElapsed = Math.round((now - checkInTime) / (1000 * 60));
-      const hoursWorked = ((totalMinutesElapsed - currentTotalLunch) / 60).toFixed(2);
-      
+      const hoursWorked = (
+        (totalMinutesElapsed - currentTotalLunch) /
+        60
+      ).toFixed(2);
+
       await update(ref(rtdb, `liveTracking/${traineeId}`), {
         currentHoursWorked: hoursWorked,
       });
@@ -289,7 +327,6 @@ export const lunchEnd = async (req, res) => {
 export const checkOut = async (req, res) => {
   try {
     const { traineeId, checkOutTime } = req.body;
-    // const checkOutTime = formatTime();
 
     if (!traineeId || !checkOutTime) {
       return res.status(400).json({ error: "Missing required fields" });
@@ -303,23 +340,69 @@ export const checkOut = async (req, res) => {
       throw new Error("No check-in time found");
     }
 
-    // Calculate total hours worked
-    const checkInTime = new Date(`2000/01/01 ${rtdbData.checkInTime}`);
-    const checkOut = new Date(`2000/01/01 ${checkOutTime}`);
-    let totalMinutes = Math.round((checkOut - checkInTime) / (1000 * 60));
+    // console.log("Raw check-in time from RTDB:", rtdbData.checkInTime);
+    // console.log("Raw check-out time from request:", checkOutTime);
+
+    // Convert 12-hour format (AM/PM) to 24-hour format
+    const convertTo24Hour = (timeStr) => {
+      const match = timeStr.match(/(\d+):(\d+) (\w{2})/);
+      if (!match) throw new Error(`Invalid time format: ${timeStr}`);
+
+      let [_, hours, minutes, period] = match;
+      hours = parseInt(hours, 10);
+      minutes = parseInt(minutes, 10);
+
+      if (period.toUpperCase() === "PM" && hours !== 12) hours += 12;
+      if (period.toUpperCase() === "AM" && hours === 12) hours = 0;
+
+      return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+    };
+
+    // Convert check-in and check-out times
+    const checkInTime24 = convertTo24Hour(rtdbData.checkInTime);
+    const checkOutTime24 = convertTo24Hour(checkOutTime);
+
+    // console.log("Converted check-in time:", checkInTime24);
+    // console.log("Converted check-out time:", checkOutTime24);
+
+    // Parse check-in and check-out times
+    const [checkInHours, checkInMinutes] = checkInTime24.split(":").map(Number);
+    const [checkOutHours, checkOutMinutes] = checkOutTime24.split(":").map(Number);
+
+    if (
+      isNaN(checkInHours) || isNaN(checkInMinutes) ||
+      isNaN(checkOutHours) || isNaN(checkOutMinutes)
+    ) {
+      throw new Error(`Invalid time values after conversion - Check-in: ${checkInTime24}, Check-out: ${checkOutTime24}`);
+    }
+
+    // Convert to total minutes
+    const checkInTotalMinutes = checkInHours * 60 + checkInMinutes;
+    const checkOutTotalMinutes = checkOutHours * 60 + checkOutMinutes;
+
+    // Calculate total minutes worked
+    let totalMinutes = checkOutTotalMinutes - checkInTotalMinutes;
+    if (totalMinutes < 0) {
+      throw new Error("Check-out time cannot be earlier than check-in time");
+    }
 
     // Get today's report document
     const { ref: reportRef, today } = await getTodayReportDoc(traineeId);
     const reportDoc = await getDoc(reportRef);
     const todayData = reportDoc.data()?.[today] || {};
 
-    // Subtract lunch time if applicable
-    const totalLunchMinutes = rtdbData.totalLunchMinutes || todayData.totalLunchMinutes || 0;
+    // Ensure totalLunchMinutes is a valid number
+    const totalLunchMinutes = Number(rtdbData.totalLunchMinutes || todayData.totalLunchMinutes || 0);
+
+    // Ensure subtraction doesn't cause NaN issues
     const totalHours = ((totalMinutes - totalLunchMinutes) / 60).toFixed(2);
+    if (isNaN(totalHours)) {
+      throw new Error("Invalid total hours calculation");
+    }
 
     // Update Firestore report
     await updateDoc(reportRef, {
-      [`${today}.checkOutTime`]: checkOutTime,
+      [`${today}.checkOutTime`]: checkOutTime24,
       [`${today}.totalHoursWorked`]: parseFloat(totalHours),
       [`${today}.totalLunchMinutes`]: totalLunchMinutes,
     });
@@ -329,15 +412,17 @@ export const checkOut = async (req, res) => {
 
     res.status(200).json({
       message: "Check-out successful",
-      checkOutTime,
+      checkOutTime: checkOutTime24,
       totalHoursWorked: totalHours,
       totalLunchMinutes,
     });
   } catch (error) {
-    console.error("Check-out error:", error);
-    res.status(500).json({ error: "Failed to check out" });
+    console.error("Check-out error:", error.message);
+    res.status(500).json({ error: error.message || "Failed to check out" });
   }
 };
+
+
 
 export const traineeStatus = async (req, res) => {
   try {
@@ -350,13 +435,18 @@ export const traineeStatus = async (req, res) => {
       if (status.checkInTime) {
         const checkInTime = new Date(`2000/01/01 ${status.checkInTime}`);
         const now = new Date(`2000/01/01 ${formatTime()}`);
-        const totalMinutesElapsed = Math.round((now - checkInTime) / (1000 * 60));
+        const totalMinutesElapsed = Math.round(
+          (now - checkInTime) / (1000 * 60)
+        );
         const totalLunchMinutes = status.totalLunchMinutes || 0;
-        const currentHoursWorked = ((totalMinutesElapsed - totalLunchMinutes) / 60).toFixed(2);
-        
+        const currentHoursWorked = (
+          (totalMinutesElapsed - totalLunchMinutes) /
+          60
+        ).toFixed(2);
+
         status.currentHoursWorked = currentHoursWorked;
       }
-      
+
       res.status(200).json(status);
     } else {
       res.status(200).json({ message: "Not checked in" });
@@ -367,7 +457,6 @@ export const traineeStatus = async (req, res) => {
   }
 };
 
-
 export const getTraineesByLocation = async (req, res) => {
   try {
     const location = req.location;
@@ -376,7 +465,7 @@ export const getTraineesByLocation = async (req, res) => {
       return res.status(400).json({ error: "Location is required" });
     }
 
-    const traineesRef = ref(rtdb, 'liveTracking');
+    const traineesRef = ref(rtdb, "liveTracking");
     const snapshot = await get(traineesRef);
     const traineesData = snapshot.val();
 
@@ -385,9 +474,8 @@ export const getTraineesByLocation = async (req, res) => {
     }
 
     const traineesAtLocation = Object.values(traineesData).filter(
-      trainee => trainee.location === location
+      (trainee) => trainee.location === location
     );
-    
 
     res.status(200).json(traineesAtLocation);
   } catch (error) {
@@ -398,8 +486,7 @@ export const getTraineesByLocation = async (req, res) => {
 
 export const getLiveTrainees = async (req, res) => {
   try {
-
-    const traineesRef = ref(rtdb, 'liveTracking');
+    const traineesRef = ref(rtdb, "liveTracking");
     const snapshot = await get(traineesRef);
     const traineesData = snapshot.val();
 
@@ -419,36 +506,36 @@ export const recordAbsenteeism = async (req, res) => {
   try {
     const { date } = req.body;
     const checkDate = date || new Date().toISOString().split("T")[0];
-    
+
     // Only proceed if it's a working day
     const workingDay = await isWorkingDay(checkDate);
     if (!workingDay) {
-      return res.status(200).json({ 
+      return res.status(200).json({
         message: "No absenteeism recorded as this is not a working day",
         date: checkDate,
-        isWorkingDay: false
+        isWorkingDay: false,
       });
     }
-    
+
     // Get all trainees
     const traineesQuery = query(collection(db, "trainees"));
     const traineesSnapshot = await getDocs(traineesQuery);
-    
+
     const absentees = [];
     const promises = [];
-    
+
     traineesSnapshot.forEach((traineeDoc) => {
       const trainee = { id: traineeDoc.id, ...traineeDoc.data() };
-      
+
       // For each trainee, check if they have a report for today
       const checkPromise = (async () => {
         const reportRef = doc(db, `reports/${trainee.id}`);
         const reportDoc = await getDoc(reportRef);
-        
+
         // If no report exists or no entry for today, mark as absent
         if (!reportDoc.exists() || !reportDoc.data()?.[checkDate]) {
           absentees.push(trainee);
-          
+
           // Record the absence
           await setDoc(
             reportRef,
@@ -464,7 +551,7 @@ export const recordAbsenteeism = async (req, res) => {
             },
             { merge: true }
           );
-          
+
           // Also record in a separate absenteeism collection
           await addDoc(collection(db, "absenteeism"), {
             traineeId: trainee.id,
@@ -475,17 +562,17 @@ export const recordAbsenteeism = async (req, res) => {
           });
         }
       })();
-      
+
       promises.push(checkPromise);
     });
-    
+
     await Promise.all(promises);
-    
+
     res.status(200).json({
       message: "Absenteeism recorded successfully",
       date: checkDate,
       absenteesCount: absentees.length,
-      absentees: absentees.map(a => ({ id: a.id, name: a.name })),
+      absentees: absentees.map((a) => ({ id: a.id, name: a.name })),
     });
   } catch (error) {
     console.error("Absenteeism recording error:", error);
@@ -496,30 +583,32 @@ export const recordAbsenteeism = async (req, res) => {
 export const getTraineeHistory = async (req, res) => {
   try {
     const { traineeId, startDate, endDate } = req.query;
-    
+
     if (!traineeId) {
       return res.status(400).json({ error: "Trainee ID is required" });
     }
-    
+
     // Define date range
     const start = startDate ? new Date(startDate) : new Date();
     start.setDate(start.getDate() - 30); // Default to last 30 days
     const end = endDate ? new Date(endDate) : new Date();
-    
+
     const reportRef = doc(db, `reports/${traineeId}`);
     const reportDoc = await getDoc(reportRef);
-    
+
     if (!reportDoc.exists()) {
-      return res.status(404).json({ error: "No records found for this trainee" });
+      return res
+        .status(404)
+        .json({ error: "No records found for this trainee" });
     }
-    
+
     const reportData = reportDoc.data();
     const history = [];
-    
+
     // Convert date strings to Date objects for comparison
     const startDateStr = start.toISOString().split("T")[0];
     const endDateStr = end.toISOString().split("T")[0];
-    
+
     // Filter and collect reports within date range
     for (const [date, data] of Object.entries(reportData)) {
       if (date >= startDateStr && date <= endDateStr) {
@@ -529,24 +618,41 @@ export const getTraineeHistory = async (req, res) => {
         });
       }
     }
-    
+
     // Sort by date (newest first)
     history.sort((a, b) => new Date(b.date) - new Date(a.date));
-    
+
     // Calculate summary statistics
     const summary = {
       totalDays: history.length,
-      workingDays: history.filter(day => day.isWorkingDay).length,
-      presentDays: history.filter(day => day.checkInTime && day.isWorkingDay).length,
-      absentDays: history.filter(day => day.status === "Absent" && day.isWorkingDay).length,
-      lateDays: history.filter(day => day.status === "Late" && day.isWorkingDay).length,
-      totalHoursWorked: history.reduce((sum, day) => sum + (day.totalHoursWorked || 0), 0).toFixed(2),
-      averageDailyHours: (history.reduce((sum, day) => sum + (day.totalHoursWorked || 0), 0) / 
-                          Math.max(1, history.filter(day => day.checkInTime && day.isWorkingDay).length)).toFixed(2),
-      averageLunchMinutes: (history.reduce((sum, day) => sum + (day.totalLunchMinutes || 0), 0) / 
-                           Math.max(1, history.filter(day => day.lunchStartTime && day.isWorkingDay).length)).toFixed(0),
+      workingDays: history.filter((day) => day.isWorkingDay).length,
+      presentDays: history.filter((day) => day.checkInTime && day.isWorkingDay)
+        .length,
+      absentDays: history.filter(
+        (day) => day.status === "Absent" && day.isWorkingDay
+      ).length,
+      lateDays: history.filter(
+        (day) => day.status === "Late" && day.isWorkingDay
+      ).length,
+      totalHoursWorked: history
+        .reduce((sum, day) => sum + (day.totalHoursWorked || 0), 0)
+        .toFixed(2),
+      averageDailyHours: (
+        history.reduce((sum, day) => sum + (day.totalHoursWorked || 0), 0) /
+        Math.max(
+          1,
+          history.filter((day) => day.checkInTime && day.isWorkingDay).length
+        )
+      ).toFixed(2),
+      averageLunchMinutes: (
+        history.reduce((sum, day) => sum + (day.totalLunchMinutes || 0), 0) /
+        Math.max(
+          1,
+          history.filter((day) => day.lunchStartTime && day.isWorkingDay).length
+        )
+      ).toFixed(0),
     };
-    
+
     res.status(200).json({
       traineeId,
       summary,
@@ -564,39 +670,39 @@ export const getTraineeDailyReport = async (req, res) => {
     const { traineeId } = req.params;
     const { date } = req.query;
     const reportDate = date || new Date().toISOString().split("T")[0];
-    
+
     // Validate input
     if (!traineeId) {
       return res.status(400).json({ error: "Trainee ID is required" });
     }
-    
+
     // Check if it's a working day
     const workingDay = await isWorkingDay(reportDate);
-    
+
     // Get trainee details to verify existence and get name
     const traineeRef = doc(db, `trainees/${traineeId}`);
     const traineeDoc = await getDoc(traineeRef);
-    
+
     if (!traineeDoc.exists()) {
       return res.status(404).json({ error: "Trainee not found" });
     }
-    
+
     const traineeName = traineeDoc.data().name;
-    
+
     // Get the trainee's report for the specified date
     const reportRef = doc(db, `reports/${traineeId}`);
     const reportDoc = await getDoc(reportRef);
-    
+
     // Check if report exists for the date
     if (reportDoc.exists() && reportDoc.data()?.[reportDate]) {
       const traineeDailyData = reportDoc.data()[reportDate];
-      
+
       res.status(200).json({
         traineeId,
         name: traineeName,
         date: reportDate,
         isWorkingDay: workingDay,
-        report: traineeDailyData
+        report: traineeDailyData,
       });
     } else if (workingDay) {
       // If it's a working day but no report, consider absent
@@ -611,7 +717,7 @@ export const getTraineeDailyReport = async (req, res) => {
           isWorkingDay: true,
           totalHoursWorked: 0,
           totalLunchMinutes: 0,
-        }
+        },
       });
     } else {
       // Not a working day
@@ -624,7 +730,7 @@ export const getTraineeDailyReport = async (req, res) => {
           date: reportDate,
           status: "Non-working day",
           isWorkingDay: false,
-        }
+        },
       });
     }
   } catch (error) {
@@ -639,7 +745,7 @@ export const getDailyReport = async (req, res) => {
     const { date, page = 1, limit = 5 } = req.query;
     const reportDate = date || new Date().toISOString().split("T")[0];
     const pageNumber = parseInt(page, 10);
-    const limitNumber = parseInt(limit, 10);
+    const limitNumber = parseInt(limit, 5);
     // Validate pagination parameters
     if (isNaN(pageNumber)) {
       return res.status(400).json({ error: "Invalid page number" });
@@ -718,18 +824,17 @@ export const getDailyReport = async (req, res) => {
   }
 };
 
-
 export const getWeeklyStats = async (req, res) => {
   try {
     const { traineeId, weekStart, weekNumber, year } = req.query;
-    
+
     if (!traineeId) {
       return res.status(400).json({ error: "Trainee ID is required" });
     }
-    
+
     // Define date range for the specified week
     let startDate, endDate;
-    
+
     if (weekStart) {
       // If a specific start date is provided, use it and calculate the end date (6 days later)
       startDate = new Date(weekStart);
@@ -741,7 +846,7 @@ export const getWeeklyStats = async (req, res) => {
       // https://en.wikipedia.org/wiki/ISO_week_date
       const parsedYear = parseInt(year);
       const parsedWeek = parseInt(weekNumber);
-      
+
       // Find January 4th for the given year (guaranteed to be in week 1)
       const jan4th = new Date(parsedYear, 0, 4);
       // Find the Monday of the week containing January 4th
@@ -749,11 +854,11 @@ export const getWeeklyStats = async (req, res) => {
       const dayOfWeek = jan4th.getDay();
       const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // Adjust for Sunday being 0
       firstMonday.setDate(jan4th.getDate() + diff);
-      
+
       // Calculate the Monday of the requested week
       startDate = new Date(firstMonday);
       startDate.setDate(firstMonday.getDate() + (parsedWeek - 1) * 7);
-      
+
       // Calculate the Sunday of the requested week
       endDate = new Date(startDate);
       endDate.setDate(startDate.getDate() + 6);
@@ -764,50 +869,52 @@ export const getWeeklyStats = async (req, res) => {
       const day = startDate.getDay();
       const diff = day === 0 ? -6 : 1 - day; // Adjust for Sunday being 0
       startDate.setDate(startDate.getDate() + diff);
-      
+
       endDate = new Date(startDate);
       endDate.setDate(startDate.getDate() + 6);
     }
-    
+
     const startDateStr = startDate.toISOString().split("T")[0];
     const endDateStr = endDate.toISOString().split("T")[0];
-    
+
     // Get trainee info
     const traineeRef = doc(db, `trainees/${traineeId}`);
     const traineeDoc = await getDoc(traineeRef);
-    
+
     if (!traineeDoc.exists()) {
       return res.status(404).json({ error: "Trainee not found" });
     }
-    
+
     const traineeName = traineeDoc.data().name;
-    
+
     // Get trainee's report document
     const reportRef = doc(db, `reports/${traineeId}`);
     const reportDoc = await getDoc(reportRef);
-    
+
     if (!reportDoc.exists()) {
-      return res.status(404).json({ error: "No records found for this trainee" });
+      return res
+        .status(404)
+        .json({ error: "No records found for this trainee" });
     }
-    
+
     const reportData = reportDoc.data();
     const weeklyData = [];
-    
+
     // Calculate all working days in the week
     const workingDaysInWeek = [];
     let currentDay = new Date(startDate);
-    
+
     while (currentDay <= endDate) {
       const dateStr = currentDay.toISOString().split("T")[0];
       const isWorkDay = await isWorkingDay(dateStr);
-      
+
       if (isWorkDay) {
         workingDaysInWeek.push(dateStr);
       }
-      
+
       currentDay.setDate(currentDay.getDate() + 1);
     }
-    
+
     // Filter and collect reports within date range
     for (const [date, data] of Object.entries(reportData)) {
       if (date >= startDateStr && date <= endDateStr) {
@@ -817,36 +924,40 @@ export const getWeeklyStats = async (req, res) => {
         });
       }
     }
-    
+
     // Count attended days (days with check in)
-    const attendedDays = weeklyData.filter(day => day.checkInTime && day.isWorkingDay);
-    
-    // Calculate absent days (working days without attendance)
-    const absentDays = workingDaysInWeek.filter(date => 
-      !weeklyData.some(day => day.date === date && day.checkInTime)
+    const attendedDays = weeklyData.filter(
+      (day) => day.checkInTime && day.isWorkingDay
     );
-    
+
+    // Calculate absent days (working days without attendance)
+    const absentDays = workingDaysInWeek.filter(
+      (date) => !weeklyData.some((day) => day.date === date && day.checkInTime)
+    );
+
     // Calculate total working hours
     const totalWorkingHours = attendedDays.reduce(
       (sum, day) => sum + (parseFloat(day.totalHoursWorked) || 0),
       0
     );
-    
+
     // Calculate total lunch hours
     const totalLunchMinutes = attendedDays.reduce(
       (sum, day) => sum + (parseInt(day.totalLunchMinutes) || 0),
       0
     );
     const totalLunchHours = (totalLunchMinutes / 60).toFixed(2);
-    
+
     // Calculate late days
-    const lateDays = attendedDays.filter(day => day.status === "Late").length;
-    
+    const lateDays = attendedDays.filter((day) => day.status === "Late").length;
+
     // Daily breakdown
-    const dailyBreakdown = workingDaysInWeek.map(dateStr => {
-      const dayData = weeklyData.find(day => day.date === dateStr);
-      const dayOfWeek = new Date(dateStr).toLocaleString('default', { weekday: 'long' });
-      
+    const dailyBreakdown = workingDaysInWeek.map((dateStr) => {
+      const dayData = weeklyData.find((day) => day.date === dateStr);
+      const dayOfWeek = new Date(dateStr).toLocaleString("default", {
+        weekday: "long",
+      });
+
       if (dayData && dayData.checkInTime) {
         // Day attended
         return {
@@ -859,7 +970,7 @@ export const getWeeklyStats = async (req, res) => {
           checkOutTime: dayData.checkOutTime || "N/A",
           hoursWorked: parseFloat(dayData.totalHoursWorked || 0).toFixed(2),
           lunchMinutes: dayData.totalLunchMinutes || 0,
-          status: dayData.status || "N/A"
+          status: dayData.status || "N/A",
         };
       } else {
         // Day absent or no data
@@ -867,14 +978,14 @@ export const getWeeklyStats = async (req, res) => {
           date: dateStr,
           dayOfWeek,
           attended: false,
-          status: "Absent"
+          status: "Absent",
         };
       }
     });
-    
+
     // Get week number for the result
     const weekNum = getWeekNumber(startDate);
-    
+
     // Weekly statistics summary
     const weeklyStats = {
       traineeId,
@@ -887,19 +998,27 @@ export const getWeeklyStats = async (req, res) => {
       attendedDays: attendedDays.length,
       absentDays: absentDays.length,
       lateDays,
-      attendanceRate: ((attendedDays.length / Math.max(1, workingDaysInWeek.length)) * 100).toFixed(2) + "%",
+      attendanceRate:
+        (
+          (attendedDays.length / Math.max(1, workingDaysInWeek.length)) *
+          100
+        ).toFixed(2) + "%",
       totalWorkingHours: totalWorkingHours.toFixed(2),
-      averageDailyHours: (totalWorkingHours / Math.max(1, attendedDays.length)).toFixed(2),
+      averageDailyHours: (
+        totalWorkingHours / Math.max(1, attendedDays.length)
+      ).toFixed(2),
       totalLunchMinutes,
       totalLunchHours,
-      averageLunchMinutes: (totalLunchMinutes / Math.max(1, attendedDays.length)).toFixed(0),
+      averageLunchMinutes: (
+        totalLunchMinutes / Math.max(1, attendedDays.length)
+      ).toFixed(0),
     };
-    
+
     res.status(200).json({
       weeklyStats,
       dailyBreakdown,
       workingDays: workingDaysInWeek,
-      absentDays
+      absentDays,
     });
   } catch (error) {
     console.error("Weekly stats error:", error);
@@ -915,7 +1034,7 @@ function getWeekNumber(date) {
   const firstThursday = target.valueOf();
   target.setMonth(0, 1);
   if (target.getDay() !== 4) {
-    target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
+    target.setMonth(0, 1 + ((4 - target.getDay() + 7) % 7));
   }
   return 1 + Math.ceil((firstThursday - target) / 604800000);
 }
@@ -924,53 +1043,57 @@ function getWeekNumber(date) {
 export const getMonthlyStats = async (req, res) => {
   try {
     const { traineeId, month, year } = req.query;
-    
+
     if (!traineeId) {
       return res.status(400).json({ error: "Trainee ID is required" });
     }
-    
+
     // Define date range for the specified month
     const currentDate = new Date();
     const targetYear = year ? parseInt(year) : currentDate.getFullYear();
     const targetMonth = month ? parseInt(month) - 1 : currentDate.getMonth(); // JS months are 0-indexed
-    
+
     const firstDay = new Date(targetYear, targetMonth, 1);
     const lastDay = new Date(targetYear, targetMonth + 1, 0); // Last day of month
-    
+
     const firstDayStr = firstDay.toISOString().split("T")[0];
     const lastDayStr = lastDay.toISOString().split("T")[0];
-    
+
     // Get trainee's report document
     const reportRef = doc(db, `reports/${traineeId}`);
     const reportDoc = await getDoc(reportRef);
-    
+
     if (!reportDoc.exists()) {
-      return res.status(404).json({ error: "No records found for this trainee" });
+      return res
+        .status(404)
+        .json({ error: "No records found for this trainee" });
     }
-    
+
     const reportData = reportDoc.data();
     const monthlyData = [];
-    
+
     // Get trainee name
     const traineeRef = doc(db, `trainees/${traineeId}`);
     const traineeDoc = await getDoc(traineeRef);
-    const traineeName = traineeDoc.exists() ? traineeDoc.data().name : "Unknown";
-    
+    const traineeName = traineeDoc.exists()
+      ? traineeDoc.data().name
+      : "Unknown";
+
     // Calculate working days in the month
     const workingDaysInMonth = [];
     let currentDay = new Date(firstDay);
-    
+
     while (currentDay <= lastDay) {
       const dateStr = currentDay.toISOString().split("T")[0];
       const isWorkDay = await isWorkingDay(dateStr);
-      
+
       if (isWorkDay) {
         workingDaysInMonth.push(dateStr);
       }
-      
+
       currentDay.setDate(currentDay.getDate() + 1);
     }
-    
+
     // Filter and collect reports within date range
     for (const [date, data] of Object.entries(reportData)) {
       if (date >= firstDayStr && date <= lastDayStr) {
@@ -980,61 +1103,72 @@ export const getMonthlyStats = async (req, res) => {
         });
       }
     }
-    
+
     // Count attended days (days with check in)
-    const attendedDays = monthlyData.filter(day => day.checkInTime && day.isWorkingDay);
-    
-    // Calculate absent days (working days without attendance)
-    const absentDays = workingDaysInMonth.filter(date => 
-      !monthlyData.some(day => day.date === date && day.checkInTime)
+    const attendedDays = monthlyData.filter(
+      (day) => day.checkInTime && day.isWorkingDay
     );
-    
+
+    // Calculate absent days (working days without attendance)
+    const absentDays = workingDaysInMonth.filter(
+      (date) => !monthlyData.some((day) => day.date === date && day.checkInTime)
+    );
+
     // Calculate total working hours
     const totalWorkingHours = attendedDays.reduce(
       (sum, day) => sum + (parseFloat(day.totalHoursWorked) || 0),
       0
     );
-    
+
     // Calculate total lunch hours
     const totalLunchMinutes = attendedDays.reduce(
       (sum, day) => sum + (parseInt(day.totalLunchMinutes) || 0),
       0
     );
     const totalLunchHours = (totalLunchMinutes / 60).toFixed(2);
-    
+
     // Calculate late days
-    const lateDays = attendedDays.filter(day => day.status === "Late").length;
-    
+    const lateDays = attendedDays.filter((day) => day.status === "Late").length;
+
     // Monthly statistics summary
     const monthlyStats = {
       traineeId,
       traineeName,
       year: targetYear,
       month: targetMonth + 1,
-      monthName: new Date(targetYear, targetMonth, 1).toLocaleString('default', { month: 'long' }),
+      monthName: new Date(targetYear, targetMonth, 1).toLocaleString(
+        "default",
+        { month: "long" }
+      ),
       workingDaysInMonth: workingDaysInMonth.length,
       attendedDays: attendedDays.length,
       absentDays: absentDays.length,
       lateDays,
-      attendanceRate: ((attendedDays.length / workingDaysInMonth.length) * 100).toFixed(2) + "%",
+      attendanceRate:
+        ((attendedDays.length / workingDaysInMonth.length) * 100).toFixed(2) +
+        "%",
       totalWorkingHours: totalWorkingHours.toFixed(2),
-      averageDailyHours: (totalWorkingHours / Math.max(1, attendedDays.length)).toFixed(2),
+      averageDailyHours: (
+        totalWorkingHours / Math.max(1, attendedDays.length)
+      ).toFixed(2),
       totalLunchMinutes,
       totalLunchHours,
-      averageLunchMinutes: (totalLunchMinutes / Math.max(1, attendedDays.length)).toFixed(0),
+      averageLunchMinutes: (
+        totalLunchMinutes / Math.max(1, attendedDays.length)
+      ).toFixed(0),
     };
-    
+
     res.status(200).json({
       monthlyStats,
-      attendedDates: attendedDays.map(day => ({ 
-        date: day.date, 
+      attendedDates: attendedDays.map((day) => ({
+        date: day.date,
         checkInTime: day.checkInTime,
         checkOutTime: day.checkOutTime,
         hoursWorked: day.totalHoursWorked,
         lunchMinutes: day.totalLunchMinutes || 0,
-        status: day.status
+        status: day.status,
       })),
-      absentDates: absentDays
+      absentDates: absentDays,
     });
   } catch (error) {
     console.error("Monthly stats error:", error);
@@ -1046,25 +1180,25 @@ export const getMonthlyStats = async (req, res) => {
 export const getProgramStats = async (req, res) => {
   try {
     const { traineeId, startDate, endDate } = req.query;
-    
+
     if (!traineeId) {
       return res.status(400).json({ error: "Trainee ID is required" });
     }
-    
+
     // Get trainee info
     const traineeRef = doc(db, `trainees/${traineeId}`);
     const traineeDoc = await getDoc(traineeRef);
-    
+
     if (!traineeDoc.exists()) {
       return res.status(404).json({ error: "Trainee not found" });
     }
-    
+
     const traineeData = traineeDoc.data();
-    
+
     // Define program date range
     // If specific dates are provided, use them; otherwise, use trainee's program dates or default to last 9 months
     let programStart, programEnd;
-    
+
     if (startDate) {
       programStart = new Date(startDate);
     } else if (traineeData.programStartDate) {
@@ -1074,45 +1208,47 @@ export const getProgramStats = async (req, res) => {
       programStart = new Date();
       programStart.setMonth(programStart.getMonth() - 9);
     }
-    
+
     if (endDate) {
       programEnd = new Date(endDate);
     } else if (traineeData.programEndDate) {
-      programEnd = new Date(traineeData.programEndDate); 
+      programEnd = new Date(traineeData.programEndDate);
     } else {
       // Default to today
       programEnd = new Date();
     }
-    
+
     const startDateStr = programStart.toISOString().split("T")[0];
     const endDateStr = programEnd.toISOString().split("T")[0];
-    
+
     // Get trainee's report document
     const reportRef = doc(db, `reports/${traineeId}`);
     const reportDoc = await getDoc(reportRef);
-    
+
     if (!reportDoc.exists()) {
-      return res.status(404).json({ error: "No records found for this trainee" });
+      return res
+        .status(404)
+        .json({ error: "No records found for this trainee" });
     }
-    
+
     const reportData = reportDoc.data();
     const programData = [];
-    
+
     // Calculate all working days in the program period
     const workingDaysInProgram = [];
     let currentDay = new Date(programStart);
-    
+
     while (currentDay <= programEnd) {
       const dateStr = currentDay.toISOString().split("T")[0];
       const isWorkDay = await isWorkingDay(dateStr);
-      
+
       if (isWorkDay) {
         workingDaysInProgram.push(dateStr);
       }
-      
+
       currentDay.setDate(currentDay.getDate() + 1);
     }
-    
+
     // Filter and collect reports within date range
     for (const [date, data] of Object.entries(reportData)) {
       if (date >= startDateStr && date <= endDateStr) {
@@ -1122,100 +1258,121 @@ export const getProgramStats = async (req, res) => {
         });
       }
     }
-    
+
     // Count attended days (days with check in)
-    const attendedDays = programData.filter(day => day.checkInTime && day.isWorkingDay);
-    
-    // Calculate absent days (working days without attendance)
-    const absentDays = workingDaysInProgram.filter(date => 
-      !programData.some(day => day.date === date && day.checkInTime)
+    const attendedDays = programData.filter(
+      (day) => day.checkInTime && day.isWorkingDay
     );
-    
+
+    // Calculate absent days (working days without attendance)
+    const absentDays = workingDaysInProgram.filter(
+      (date) => !programData.some((day) => day.date === date && day.checkInTime)
+    );
+
     // Calculate total working hours
     const totalWorkingHours = attendedDays.reduce(
       (sum, day) => sum + (parseFloat(day.totalHoursWorked) || 0),
       0
     );
-    
+
     // Calculate total lunch hours
     const totalLunchMinutes = attendedDays.reduce(
       (sum, day) => sum + (parseInt(day.totalLunchMinutes) || 0),
       0
     );
     const totalLunchHours = (totalLunchMinutes / 60).toFixed(2);
-    
+
     // Calculate late days
-    const lateDays = attendedDays.filter(day => day.status === "Late").length;
-    
+    const lateDays = attendedDays.filter((day) => day.status === "Late").length;
+
     // Group data by month for monthly breakdown
     const monthlyBreakdown = {};
-    
-    attendedDays.forEach(day => {
+
+    attendedDays.forEach((day) => {
       const date = new Date(day.date);
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      const monthName = date.toLocaleString('default', { month: 'long', year: 'numeric' });
-      
+      const monthKey = `${date.getFullYear()}-${String(
+        date.getMonth() + 1
+      ).padStart(2, "0")}`;
+      const monthName = date.toLocaleString("default", {
+        month: "long",
+        year: "numeric",
+      });
+
       if (!monthlyBreakdown[monthKey]) {
         monthlyBreakdown[monthKey] = {
           monthName,
           daysAttended: 0,
           hoursWorked: 0,
           lunchMinutes: 0,
-          lateDays: 0
+          lateDays: 0,
         };
       }
-      
+
       monthlyBreakdown[monthKey].daysAttended++;
-      monthlyBreakdown[monthKey].hoursWorked += parseFloat(day.totalHoursWorked || 0);
-      monthlyBreakdown[monthKey].lunchMinutes += parseInt(day.totalLunchMinutes || 0);
-      
+      monthlyBreakdown[monthKey].hoursWorked += parseFloat(
+        day.totalHoursWorked || 0
+      );
+      monthlyBreakdown[monthKey].lunchMinutes += parseInt(
+        day.totalLunchMinutes || 0
+      );
+
       if (day.status === "Late") {
         monthlyBreakdown[monthKey].lateDays++;
       }
     });
-    
+
     // Convert to array and sort by month
-    const monthlyStats = Object.entries(monthlyBreakdown).map(([key, data]) => ({
-      month: key,
-      ...data,
-      hoursWorked: parseFloat(data.hoursWorked.toFixed(2)),
-      lunchHours: parseFloat((data.lunchMinutes / 60).toFixed(2))
-    })).sort((a, b) => a.month.localeCompare(b.month));
-    
+    const monthlyStats = Object.entries(monthlyBreakdown)
+      .map(([key, data]) => ({
+        month: key,
+        ...data,
+        hoursWorked: parseFloat(data.hoursWorked.toFixed(2)),
+        lunchHours: parseFloat((data.lunchMinutes / 60).toFixed(2)),
+      }))
+      .sort((a, b) => a.month.localeCompare(b.month));
+
     // Program statistics summary
     const programStats = {
       traineeId,
       traineeName: traineeData.name,
       programStartDate: startDateStr,
       programEndDate: endDateStr,
-      programDuration: Math.ceil((programEnd - programStart) / (1000 * 60 * 60 * 24)) + " days",
+      programDuration:
+        Math.ceil((programEnd - programStart) / (1000 * 60 * 60 * 24)) +
+        " days",
       workingDaysInProgram: workingDaysInProgram.length,
       attendedDays: attendedDays.length,
       absentDays: absentDays.length,
       lateDays,
-      attendanceRate: ((attendedDays.length / workingDaysInProgram.length) * 100).toFixed(2) + "%",
+      attendanceRate:
+        ((attendedDays.length / workingDaysInProgram.length) * 100).toFixed(2) +
+        "%",
       totalWorkingHours: totalWorkingHours.toFixed(2),
-      averageDailyHours: (totalWorkingHours / Math.max(1, attendedDays.length)).toFixed(2),
+      averageDailyHours: (
+        totalWorkingHours / Math.max(1, attendedDays.length)
+      ).toFixed(2),
       totalLunchMinutes,
       totalLunchHours,
-      averageLunchMinutes: (totalLunchMinutes / Math.max(1, attendedDays.length)).toFixed(0),
+      averageLunchMinutes: (
+        totalLunchMinutes / Math.max(1, attendedDays.length)
+      ).toFixed(0),
     };
-    
+
     res.status(200).json({
       programStats,
       monthlyBreakdown: monthlyStats,
-      attendedDates: attendedDays.map(day => ({ 
-        date: day.date, 
+      attendedDates: attendedDays.map((day) => ({
+        date: day.date,
         checkInTime: day.checkInTime,
         checkOutTime: day.checkOutTime,
         hoursWorked: day.totalHoursWorked,
         lunchMinutes: day.totalLunchMinutes || 0,
-        status: day.status
+        status: day.status,
       })),
-      absentDates: absentDays
+      absentDates: absentDays,
     });
   } catch (error) {
     console.error("Program stats error:", error);
     res.status(500).json({ error: "Failed to retrieve program statistics" });
   }
-}
+};
