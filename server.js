@@ -17,6 +17,7 @@ import stakeholderRoutes from './routes/stakeholderRoutes.js';
 import { scheduleQRCodeGeneration } from "./controllers/qrCodeController.js";
 import superAdminRoutes from "./routes/superAdminRoutes.js";
 import facilitatorReport from "./routes/facilitatorReportRoutes.js";
+import { autoCheckOutTrainees } from "./controllers/sessionController.js";
 
 const PORT = process.env.PORT;
 const app = express();
@@ -27,6 +28,9 @@ app.use(express.urlencoded({ extended: true }));
 
 //Call function to auto generate QR codes daily
 scheduleQRCodeGeneration();
+
+//function to auto check out trainees
+autoCheckOutTrainees()
 
 app.use("/api/auth/", authRoutes);
 app.use("/api/add-user/", authCheck);
