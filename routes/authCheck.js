@@ -8,7 +8,12 @@ import {  isSuperAdmin, completeStakeholderAccess} from '../middleware/auth.js';
 const router = express.Router();
 
 router.get("/create-user",verifyToken, ()=>{console.log("user created")});
-router.get("/trainees", verifyToken, isSuperAdmin, get_Users);
+
+router.get("/trainees", 
+    // verifyToken, 
+    // isSuperAdmin, 
+    get_Users);
+
 router.get("/my-trainees", verifyToken, get_Users_By_Location);
 router.post("/trainees", verifyToken, create_user);
 router.put("/trainees/:id",verifyToken, update_User);
