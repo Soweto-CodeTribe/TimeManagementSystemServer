@@ -109,20 +109,30 @@ export const checkIn = async (req, res) => {
       location,
     });
 
-    // Validate Required Fields
     if (!traineeId || !name || !checkInTime || !location) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
     const timestamp = Date.now();
     const today = new Date().toISOString().split("T")[0];
-    
+
     // Check if today is a working day
     const workingDay = await isWorkingDay(today);
     if (!workingDay) {
       return res.status(200).json({ 
         message: "Check-in recorded, but today is not a working day", 
         isWorkingDay: false 
+      });
+    }
+
+    // Check if trainee already has a record for today in RTDB
+    const rtdbSnapshot = await get(ref(rtdb, `liveTracking/${traineeId}`));
+    const rtdbData = rtdbSnapshot.val();
+
+    if (rtdbData && rtdbData.currentDate === today) {
+      return res.status(200).json({ 
+        message: `${rtdbData.name} you have already checked in at ${rtdbData.checkInTime}`, 
+        checkInTime: rtdbData.checkInTime 
       });
     }
 
