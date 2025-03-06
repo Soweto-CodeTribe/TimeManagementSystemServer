@@ -256,7 +256,7 @@ export const lunchStart = async (req, res) => {
     if (rtdbData?.checkInTime) {
       // Ensure check-in time is in 24-hour format
       const checkInTime24 = standardizeTimeFormat(rtdbData.checkInTime);
-      
+
       const checkInTime = new Date(`2000/01/01 ${checkInTime24}`);
       const lunchStart = new Date(`2000/01/01 ${standardizedLunchStartTime}`);
       const minutesWorkedBeforeLunch = Math.round(
@@ -282,7 +282,7 @@ export const lunchStart = async (req, res) => {
 export const lunchEnd = async (req, res) => {
   try {
     const { traineeId, lunchEndTime } = req.body;
-    
+
     const standardizedLunchEndTime = standardizeTimeFormat(lunchEndTime);
 
     const rtdbSnapshot = await get(ref(rtdb, `liveTracking/${traineeId}`));
@@ -304,7 +304,7 @@ export const lunchEnd = async (req, res) => {
     }
 
     const lunchStartTime24 = standardizeTimeFormat(rtdbData.lunchStartTime);
-    
+
     // Calculate lunch duration in minutes
     const lunchStart = new Date(`2000/01/01 ${lunchStartTime24}`);
     const lunchEnd = new Date(`2000/01/01 ${standardizedLunchEndTime}`);
@@ -342,7 +342,7 @@ export const lunchEnd = async (req, res) => {
     if (rtdbData?.checkInTime) {
       // Ensure check-in time is in 24-hour format
       const checkInTime24 = standardizeTimeFormat(rtdbData.checkInTime);
-      
+
       const checkInTime = new Date(`2000/01/01 ${checkInTime24}`);
       const now = new Date(`2000/01/01 ${standardizedLunchEndTime}`);
       const totalMinutesElapsed = Math.round((now - checkInTime) / (1000 * 60));
@@ -377,7 +377,7 @@ export const checkOut = async (req, res) => {
     }
 
     const standardizedCheckOutTime = standardizeTimeFormat(checkOutTime);
-    
+
     // Get current data from Realtime Database
     const rtdbSnapshot = await get(ref(rtdb, `liveTracking/${traineeId}`));
     const rtdbData = rtdbSnapshot.val();
@@ -387,16 +387,22 @@ export const checkOut = async (req, res) => {
     }
 
     const checkInTime24 = standardizeTimeFormat(rtdbData.checkInTime);
-    
+
     // Parse check-in and check-out times
     const [checkInHours, checkInMinutes] = checkInTime24.split(":").map(Number);
-    const [checkOutHours, checkOutMinutes] = standardizedCheckOutTime.split(":").map(Number);
+    const [checkOutHours, checkOutMinutes] = standardizedCheckOutTime
+      .split(":")
+      .map(Number);
 
     if (
-      isNaN(checkInHours) || isNaN(checkInMinutes) ||
-      isNaN(checkOutHours) || isNaN(checkOutMinutes)
+      isNaN(checkInHours) ||
+      isNaN(checkInMinutes) ||
+      isNaN(checkOutHours) ||
+      isNaN(checkOutMinutes)
     ) {
-      throw new Error(`Invalid time values - Check-in: ${checkInTime24}, Check-out: ${standardizedCheckOutTime}`);
+      throw new Error(
+        `Invalid time values - Check-in: ${checkInTime24}, Check-out: ${standardizedCheckOutTime}`
+      );
     }
 
     // Convert to total minutes
@@ -416,7 +422,9 @@ export const checkOut = async (req, res) => {
     const todayData = reportDoc.data()?.[today] || {};
 
     // Ensure totalLunchMinutes is a valid number
-    const totalLunchMinutes = Number(rtdbData.totalLunchMinutes || todayData.totalLunchMinutes || 0);
+    const totalLunchMinutes = Number(
+      rtdbData.totalLunchMinutes || todayData.totalLunchMinutes || 0
+    );
 
     // Ensure subtraction doesn't cause NaN issues
     const totalHours = ((totalMinutes - totalLunchMinutes) / 60).toFixed(2);
@@ -580,6 +588,26 @@ export const autoCheckOutTrainees = async () => {
     console.error("Auto check-out error:", error);
   }
 };
+
+export function scheduleAutoCheckOut() {
+  const now = new Date();
+  const fivePm = new Date(now);
+
+  fivePm.setHours(17, 30, 0, 0);
+  if (fivePm < now) {
+    fivePm.setDate(fivePm.getDate() + 1);
+  }
+
+  const timeUntilNext5AM = fivePm - now;
+  console.log(
+    `🕐 Trainees will be auto checked out at: ${fivePm.toLocaleString()}`
+  );
+
+  setTimeout(() => {
+    autoCheckOutTrainees();
+    setInterval(autoCheckOutTrainees, 24 * 60 * 60 * 1000); // Run every 24 hours
+  }, timeUntilNext5AM);
+}
 
 // New controllers for the enhanced features
 export const recordAbsenteeism = async (req, res) => {

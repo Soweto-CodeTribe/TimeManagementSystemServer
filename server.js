@@ -17,7 +17,7 @@ import stakeholderRoutes from './routes/stakeholderRoutes.js';
 import { scheduleQRCodeGeneration } from "./controllers/qrCodeController.js";
 import superAdminRoutes from "./routes/superAdminRoutes.js";
 import facilitatorReport from "./routes/facilitatorReportRoutes.js";
-import { autoCheckOutTrainees, standardizeTimeFormat } from "./controllers/sessionController.js";
+import { autoCheckOutTrainees, scheduleAutoCheckOut, standardizeTimeFormat } from "./controllers/sessionController.js";
 
 const PORT = process.env.PORT;
 const app = express();
@@ -28,7 +28,7 @@ app.use(express.urlencoded({ extended: true }));
 
 //Call function to auto generate QR codes daily
 scheduleQRCodeGeneration();
-
+scheduleAutoCheckOut()
 // const timeTest = standardizeTimeFormat("07:23 pm")
 // console.log("converter time: ",timeTest)
 
