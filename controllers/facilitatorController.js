@@ -27,9 +27,13 @@ export const createFacilitator = async (req, res) => {
         const facilitatorData = {
             uid: user.uid,
             surname: req.body.surname,
-            name: req.body.name,
+            fullName: req.body.fullName,
             email: req.body.email,
             location: req.body.location,
+            idNumber: req.body.idNumber,
+            street: req.body.street,
+            city: req.body.city,
+            postalCode: req.body.postalCode,
             role: req.body.role || 'facilitator',
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp()
