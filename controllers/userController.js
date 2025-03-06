@@ -165,7 +165,7 @@ export const create_user = async (req, res) => {
     const newTrainee = {
       traineeId: newTraineeId,
       uid,
-      FullName,
+      fullName,
       surname,
       ...(age && { age }),
       ...(gender && { gender }),
