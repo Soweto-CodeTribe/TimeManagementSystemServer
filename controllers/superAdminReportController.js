@@ -12,8 +12,18 @@ import {
   // Get all trainees' daily reports
   export const getAllTraineesDailyReport = async (req, res) => {
     try {
-      const { date } = req.query;
+      const { date, page = 1, limit = 5 } = req.query;
       const reportDate = date || new Date().toISOString().split("T")[0];
+      const pageNumber = parseInt(page, 10);
+      const limitNumber = parseInt(limit, 10);
+  
+      // Validate pagination parameters
+      if (isNaN(pageNumber) || pageNumber < 1) {
+        return res.status(400).json({ error: "Invalid page number" });
+      }
+      if (isNaN(limitNumber) || limitNumber < 1) {
+        return res.status(400).json({ error: "Invalid limit number" });
+      }
   
       // Check if it's a working day
       const workingDay = await isWorkingDay(reportDate);
@@ -58,6 +68,11 @@ import {
   
       await Promise.all(promises);
   
+      // Pagination
+      const startIndex = (pageNumber - 1) * limitNumber;
+      const endIndex = startIndex + limitNumber;
+      const paginatedReports = reports.slice(startIndex, endIndex);
+  
       // Summary statistics
       const summary = {
         date: reportDate,
@@ -77,7 +92,9 @@ import {
   
       res.status(200).json({
         summary,
-        reports,
+        reports: paginatedReports,
+        currentPage: pageNumber,
+        totalPages: Math.ceil(reports.length / limitNumber),
       });
     } catch (error) {
       console.error("Daily report error:", error);

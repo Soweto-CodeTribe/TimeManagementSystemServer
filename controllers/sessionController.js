@@ -13,6 +13,8 @@ import { ref, set, get, update } from "firebase/database";
 import { db, rtdb } from "../config/firebaseConfig.js";
 import axios from "axios";
 
+const AUTO_CHECKOUT_TIME = "17:00";
+
 // Utility functions
 export const formatTime = () => {
   return new Date().toLocaleTimeString("en-US", {
@@ -498,6 +500,56 @@ export const getLiveTrainees = async (req, res) => {
   } catch (error) {
     console.error("Error fetching trainees by location:", error);
     res.status(500).json({ error: "Failed to fetch trainees by location" });
+  }
+};
+
+export const autoCheckOutTrainees = async () => {
+  try {
+    console.log("Running auto-checkout process...");
+
+    const snapshot = await get(ref(rtdb, "liveTracking"));
+    const liveTrainees = snapshot.val();
+
+    if (!liveTrainees) {
+      console.log("No trainees found for auto check-out.");
+      return;
+    }
+
+    const checkOutPromises = Object.keys(liveTrainees).map(async (traineeId) => {
+      const traineeData = liveTrainees[traineeId];
+
+      if (!traineeData.checkInTime) {
+        console.warn(`Trainee ${traineeId} has no check-in time. Skipping...`);
+        return;
+      }
+
+      const { ref: reportRef, today } = await getTodayReportDoc(traineeId);
+      const reportDoc = await getDoc(reportRef);
+      const todayData = reportDoc.data()?.[today] || {};
+
+      const checkInTime = new Date(`2000/01/01 ${traineeData.checkInTime}`);
+      const checkOutTime = new Date(`2000/01/01 ${AUTO_CHECKOUT_TIME}`);
+      let totalMinutes = Math.round((checkOutTime - checkInTime) / (1000 * 60));
+
+      const totalLunchMinutes =
+        traineeData.totalLunchMinutes || todayData.totalLunchMinutes || 0;
+      const totalHours = ((totalMinutes - totalLunchMinutes) / 60).toFixed(2);
+
+      await updateDoc(reportRef, {
+        [`${today}.checkOutTime`]: AUTO_CHECKOUT_TIME,
+        [`${today}.totalHoursWorked`]: parseFloat(totalHours),
+        [`${today}.totalLunchMinutes`]: totalLunchMinutes,
+      });
+
+      await set(ref(rtdb, `liveTracking/${traineeId}`), null);
+
+      console.log(`Trainee ${traineeId} auto checked out at ${AUTO_CHECKOUT_TIME}`);
+    });
+
+    await Promise.all(checkOutPromises);
+    console.log("Auto check-out process completed.");
+  } catch (error) {
+    console.error("Auto check-out error:", error);
   }
 };
 
