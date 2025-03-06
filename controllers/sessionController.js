@@ -104,24 +104,67 @@ const getTodayReportDoc = async (traineeId) => {
   return { ref: reportRef, today };
 };
 
-// Controller functions
+export const standardizeTimeFormat = (timeStr) => {
+  if (!timeStr) return null;
+
+  if (!timeStr.match(/\s?[APap][Mm]$/)) {
+    if (/^\d{1,2}:\d{2}$/.test(timeStr)) {
+      const [hours, minutes] = timeStr.split(":").map(Number);
+      if (hours >= 0 && hours < 24 && minutes >= 0 && minutes < 60) {
+        return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(
+          2,
+          "0"
+        )}`;
+      }
+    }
+  }
+
+  const match = timeStr.match(/(\d{1,2}):(\d{2})\s?([APap][Mm])/);
+  if (!match) {
+    throw new Error(`Invalid time format: ${timeStr}`);
+  }
+
+  let [_, hours, minutes, period] = match;
+  hours = parseInt(hours, 10);
+  minutes = parseInt(minutes, 10);
+
+  if (hours < 1 || hours > 12 || minutes < 0 || minutes > 59) {
+    throw new Error(`Invalid time values: ${timeStr}`);
+  }
+
+  if (period.toUpperCase() === "PM" && hours !== 12) hours += 12;
+  if (period.toUpperCase() === "AM" && hours === 12) hours = 0;
+
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(
+    2,
+    "0"
+  )}`;
+};
+
 export const checkIn = async (req, res) => {
   try {
     const { traineeId, name, checkInTime, location } = req.body;
-
-    console.log("Received Check-in Data:", {
-      traineeId,
-      name,
-      checkInTime,
-      location,
-    });
 
     if (!traineeId || !name || !checkInTime || !location) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
+    // Check if trainee already has a record for today in RTDB
+    const rtdbSnapshot = await get(ref(rtdb, `liveTracking/${traineeId}`));
+    const rtdbData = rtdbSnapshot.val();
+
     const timestamp = Date.now();
     const today = new Date().toISOString().split("T")[0];
+
+    if (rtdbData && rtdbData.currentDate === today) {
+      return res.status(200).json({
+        message: `${rtdbData.name} you have already checked in at ${rtdbData.checkInTime}`,
+        checkInTime: rtdbData.checkInTime,
+      });
+    }
+
+    // Standardize time format to 24-hour
+    const standardizedCheckInTime = standardizeTimeFormat(checkInTime);
 
     // Check if today is a working day
     const workingDay = await isWorkingDay(today);
@@ -132,21 +175,10 @@ export const checkIn = async (req, res) => {
       });
     }
 
-    // Check if trainee already has a record for today in RTDB
-    const rtdbSnapshot = await get(ref(rtdb, `liveTracking/${traineeId}`));
-    const rtdbData = rtdbSnapshot.val();
-
-    if (rtdbData && rtdbData.currentDate === today) {
-      return res.status(200).json({
-        message: `${rtdbData.name} you have already checked in at ${rtdbData.checkInTime}`,
-        checkInTime: rtdbData.checkInTime,
-      });
-    }
-
     // Update Realtime Database
     await set(ref(rtdb, `liveTracking/${traineeId}`), {
       name,
-      checkInTime,
+      checkInTime: standardizedCheckInTime,
       location: location || "Unknown",
       lunchStatus: "Working",
       lastUpdated: timestamp,
@@ -157,14 +189,14 @@ export const checkIn = async (req, res) => {
     const { ref: reportRef, today: reportDate } = await getTodayReportDoc(
       traineeId
     );
-    const timeStatus = checkTime(checkInTime);
+    const timeStatus = checkTime(standardizedCheckInTime);
 
     await setDoc(
       reportRef,
       {
         [today]: {
           date: today,
-          checkInTime,
+          checkInTime: standardizedCheckInTime,
           location: location || "Unknown",
           totalHoursWorked: 0,
           totalLunchMinutes: 0,
@@ -178,7 +210,7 @@ export const checkIn = async (req, res) => {
 
     res.status(200).json({
       message: "Check-in successful",
-      checkInTime,
+      checkInTime: standardizedCheckInTime,
       timeStatus,
       isWorkingDay: true,
     });
@@ -191,7 +223,8 @@ export const checkIn = async (req, res) => {
 export const lunchStart = async (req, res) => {
   try {
     const { traineeId, lunchStartTime } = req.body;
-    // const lunchStartTime = formatTime();
+
+    const standardizedLunchStartTime = standardizeTimeFormat(lunchStartTime);
 
     const rtdbSnapshot = await get(ref(rtdb, `liveTracking/${traineeId}`));
     const rtdbData = rtdbSnapshot.val();
@@ -203,26 +236,29 @@ export const lunchStart = async (req, res) => {
       });
     }
 
-    if (!traineeId || !lunchStartTime) {
+    if (!traineeId || !standardizedLunchStartTime) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
     // Update Realtime Database
     await update(ref(rtdb, `liveTracking/${traineeId}`), {
       lunchStatus: "At Lunch",
-      lunchStartTime,
+      lunchStartTime: standardizedLunchStartTime,
       lastUpdated: Date.now(),
     });
 
     // Update today's report in Firestore
     const { ref: reportRef, today } = await getTodayReportDoc(traineeId);
     await updateDoc(reportRef, {
-      [`${today}.lunchStartTime`]: lunchStartTime,
+      [`${today}.lunchStartTime`]: standardizedLunchStartTime,
     });
 
     if (rtdbData?.checkInTime) {
-      const checkInTime = new Date(`2000/01/01 ${rtdbData.checkInTime}`);
-      const lunchStart = new Date(`2000/01/01 ${lunchStartTime}`);
+      // Ensure check-in time is in 24-hour format
+      const checkInTime24 = standardizeTimeFormat(rtdbData.checkInTime);
+
+      const checkInTime = new Date(`2000/01/01 ${checkInTime24}`);
+      const lunchStart = new Date(`2000/01/01 ${standardizedLunchStartTime}`);
       const minutesWorkedBeforeLunch = Math.round(
         (lunchStart - checkInTime) / (1000 * 60)
       );
@@ -235,7 +271,7 @@ export const lunchStart = async (req, res) => {
 
     res.status(200).json({
       message: "Lunch start recorded",
-      lunchStartTime,
+      lunchStartTime: standardizedLunchStartTime,
     });
   } catch (error) {
     console.error("Lunch start error:", error);
@@ -246,7 +282,8 @@ export const lunchStart = async (req, res) => {
 export const lunchEnd = async (req, res) => {
   try {
     const { traineeId, lunchEndTime } = req.body;
-    // const lunchEndTime = formatTime();
+
+    const standardizedLunchEndTime = standardizeTimeFormat(lunchEndTime);
 
     const rtdbSnapshot = await get(ref(rtdb, `liveTracking/${traineeId}`));
     const rtdbData = rtdbSnapshot.val();
@@ -258,7 +295,7 @@ export const lunchEnd = async (req, res) => {
       });
     }
 
-    if (!traineeId || !lunchEndTime) {
+    if (!traineeId || !standardizedLunchEndTime) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
@@ -266,9 +303,11 @@ export const lunchEnd = async (req, res) => {
       throw new Error("No lunch start time found");
     }
 
+    const lunchStartTime24 = standardizeTimeFormat(rtdbData.lunchStartTime);
+
     // Calculate lunch duration in minutes
-    const lunchStart = new Date(`2000/01/01 ${rtdbData.lunchStartTime}`);
-    const lunchEnd = new Date(`2000/01/01 ${lunchEndTime}`);
+    const lunchStart = new Date(`2000/01/01 ${lunchStartTime24}`);
+    const lunchEnd = new Date(`2000/01/01 ${standardizedLunchEndTime}`);
     const lunchDurationMinutes = Math.round(
       (lunchEnd - lunchStart) / (1000 * 60)
     );
@@ -280,7 +319,7 @@ export const lunchEnd = async (req, res) => {
     // Update Realtime Database
     await update(ref(rtdb, `liveTracking/${traineeId}`), {
       lunchStatus: "Working",
-      lunchEndTime,
+      lunchEndTime: standardizedLunchEndTime,
       lastUpdated: Date.now(),
       totalLunchMinutes: currentTotalLunch,
     });
@@ -294,15 +333,18 @@ export const lunchEnd = async (req, res) => {
     const previousLunchMinutes = todayData.totalLunchMinutes || 0;
 
     await updateDoc(reportRef, {
-      [`${today}.lunchEndTime`]: lunchEndTime,
+      [`${today}.lunchEndTime`]: standardizedLunchEndTime,
       [`${today}.totalLunchMinutes`]:
         previousLunchMinutes + lunchDurationMinutes,
     });
 
     // Calculate and update real-time hours worked
     if (rtdbData?.checkInTime) {
-      const checkInTime = new Date(`2000/01/01 ${rtdbData.checkInTime}`);
-      const now = new Date(`2000/01/01 ${lunchEndTime}`);
+      // Ensure check-in time is in 24-hour format
+      const checkInTime24 = standardizeTimeFormat(rtdbData.checkInTime);
+
+      const checkInTime = new Date(`2000/01/01 ${checkInTime24}`);
+      const now = new Date(`2000/01/01 ${standardizedLunchEndTime}`);
       const totalMinutesElapsed = Math.round((now - checkInTime) / (1000 * 60));
       const hoursWorked = (
         (totalMinutesElapsed - currentTotalLunch) /
@@ -316,7 +358,7 @@ export const lunchEnd = async (req, res) => {
 
     res.status(200).json({
       message: "Lunch end recorded",
-      lunchEndTime,
+      lunchEndTime: standardizedLunchEndTime,
       lunchDurationMinutes,
       totalLunchMinutes: currentTotalLunch,
     });
@@ -334,6 +376,8 @@ export const checkOut = async (req, res) => {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
+    const standardizedCheckOutTime = standardizeTimeFormat(checkOutTime);
+
     // Get current data from Realtime Database
     const rtdbSnapshot = await get(ref(rtdb, `liveTracking/${traineeId}`));
     const rtdbData = rtdbSnapshot.val();
@@ -342,40 +386,23 @@ export const checkOut = async (req, res) => {
       throw new Error("No check-in time found");
     }
 
-    // console.log("Raw check-in time from RTDB:", rtdbData.checkInTime);
-    // console.log("Raw check-out time from request:", checkOutTime);
-
-    // Convert 12-hour format (AM/PM) to 24-hour format
-    const convertTo24Hour = (timeStr) => {
-      const match = timeStr.match(/(\d+):(\d+) (\w{2})/);
-      if (!match) throw new Error(`Invalid time format: ${timeStr}`);
-
-      let [_, hours, minutes, period] = match;
-      hours = parseInt(hours, 10);
-      minutes = parseInt(minutes, 10);
-
-      if (period.toUpperCase() === "PM" && hours !== 12) hours += 12;
-      if (period.toUpperCase() === "AM" && hours === 12) hours = 0;
-
-      return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
-    };
-
-    // Convert check-in and check-out times
-    const checkInTime24 = convertTo24Hour(rtdbData.checkInTime);
-    const checkOutTime24 = convertTo24Hour(checkOutTime);
-
-    // console.log("Converted check-in time:", checkInTime24);
-    // console.log("Converted check-out time:", checkOutTime24);
+    const checkInTime24 = standardizeTimeFormat(rtdbData.checkInTime);
 
     // Parse check-in and check-out times
     const [checkInHours, checkInMinutes] = checkInTime24.split(":").map(Number);
-    const [checkOutHours, checkOutMinutes] = checkOutTime24.split(":").map(Number);
+    const [checkOutHours, checkOutMinutes] = standardizedCheckOutTime
+      .split(":")
+      .map(Number);
 
     if (
-      isNaN(checkInHours) || isNaN(checkInMinutes) ||
-      isNaN(checkOutHours) || isNaN(checkOutMinutes)
+      isNaN(checkInHours) ||
+      isNaN(checkInMinutes) ||
+      isNaN(checkOutHours) ||
+      isNaN(checkOutMinutes)
     ) {
-      throw new Error(`Invalid time values after conversion - Check-in: ${checkInTime24}, Check-out: ${checkOutTime24}`);
+      throw new Error(
+        `Invalid time values - Check-in: ${checkInTime24}, Check-out: ${standardizedCheckOutTime}`
+      );
     }
 
     // Convert to total minutes
@@ -385,7 +412,8 @@ export const checkOut = async (req, res) => {
     // Calculate total minutes worked
     let totalMinutes = checkOutTotalMinutes - checkInTotalMinutes;
     if (totalMinutes < 0) {
-      throw new Error("Check-out time cannot be earlier than check-in time");
+      // Handle case where checkout is next day (after midnight)
+      totalMinutes += 24 * 60; // Add 24 hours worth of minutes
     }
 
     // Get today's report document
@@ -394,7 +422,9 @@ export const checkOut = async (req, res) => {
     const todayData = reportDoc.data()?.[today] || {};
 
     // Ensure totalLunchMinutes is a valid number
-    const totalLunchMinutes = Number(rtdbData.totalLunchMinutes || todayData.totalLunchMinutes || 0);
+    const totalLunchMinutes = Number(
+      rtdbData.totalLunchMinutes || todayData.totalLunchMinutes || 0
+    );
 
     // Ensure subtraction doesn't cause NaN issues
     const totalHours = ((totalMinutes - totalLunchMinutes) / 60).toFixed(2);
@@ -404,7 +434,7 @@ export const checkOut = async (req, res) => {
 
     // Update Firestore report
     await updateDoc(reportRef, {
-      [`${today}.checkOutTime`]: checkOutTime24,
+      [`${today}.checkOutTime`]: standardizedCheckOutTime,
       [`${today}.totalHoursWorked`]: parseFloat(totalHours),
       [`${today}.totalLunchMinutes`]: totalLunchMinutes,
     });
@@ -414,7 +444,7 @@ export const checkOut = async (req, res) => {
 
     res.status(200).json({
       message: "Check-out successful",
-      checkOutTime: checkOutTime24,
+      checkOutTime: standardizedCheckOutTime,
       totalHoursWorked: totalHours,
       totalLunchMinutes,
     });
@@ -423,8 +453,6 @@ export const checkOut = async (req, res) => {
     res.status(500).json({ error: error.message || "Failed to check out" });
   }
 };
-
-
 
 export const traineeStatus = async (req, res) => {
   try {
@@ -515,36 +543,44 @@ export const autoCheckOutTrainees = async () => {
       return;
     }
 
-    const checkOutPromises = Object.keys(liveTrainees).map(async (traineeId) => {
-      const traineeData = liveTrainees[traineeId];
+    const checkOutPromises = Object.keys(liveTrainees).map(
+      async (traineeId) => {
+        const traineeData = liveTrainees[traineeId];
 
-      if (!traineeData.checkInTime) {
-        console.warn(`Trainee ${traineeId} has no check-in time. Skipping...`);
-        return;
+        if (!traineeData.checkInTime) {
+          console.warn(
+            `Trainee ${traineeId} has no check-in time. Skipping...`
+          );
+          return;
+        }
+
+        const { ref: reportRef, today } = await getTodayReportDoc(traineeId);
+        const reportDoc = await getDoc(reportRef);
+        const todayData = reportDoc.data()?.[today] || {};
+
+        const checkInTime = new Date(`2000/01/01 ${traineeData.checkInTime}`);
+        const checkOutTime = new Date(`2000/01/01 ${AUTO_CHECKOUT_TIME}`);
+        let totalMinutes = Math.round(
+          (checkOutTime - checkInTime) / (1000 * 60)
+        );
+
+        const totalLunchMinutes =
+          traineeData.totalLunchMinutes || todayData.totalLunchMinutes || 0;
+        const totalHours = ((totalMinutes - totalLunchMinutes) / 60).toFixed(2);
+
+        await updateDoc(reportRef, {
+          [`${today}.checkOutTime`]: AUTO_CHECKOUT_TIME,
+          [`${today}.totalHoursWorked`]: parseFloat(totalHours),
+          [`${today}.totalLunchMinutes`]: totalLunchMinutes,
+        });
+
+        await set(ref(rtdb, `liveTracking/${traineeId}`), null);
+
+        console.log(
+          `Trainee ${traineeId} auto checked out at ${AUTO_CHECKOUT_TIME}`
+        );
       }
-
-      const { ref: reportRef, today } = await getTodayReportDoc(traineeId);
-      const reportDoc = await getDoc(reportRef);
-      const todayData = reportDoc.data()?.[today] || {};
-
-      const checkInTime = new Date(`2000/01/01 ${traineeData.checkInTime}`);
-      const checkOutTime = new Date(`2000/01/01 ${AUTO_CHECKOUT_TIME}`);
-      let totalMinutes = Math.round((checkOutTime - checkInTime) / (1000 * 60));
-
-      const totalLunchMinutes =
-        traineeData.totalLunchMinutes || todayData.totalLunchMinutes || 0;
-      const totalHours = ((totalMinutes - totalLunchMinutes) / 60).toFixed(2);
-
-      await updateDoc(reportRef, {
-        [`${today}.checkOutTime`]: AUTO_CHECKOUT_TIME,
-        [`${today}.totalHoursWorked`]: parseFloat(totalHours),
-        [`${today}.totalLunchMinutes`]: totalLunchMinutes,
-      });
-
-      await set(ref(rtdb, `liveTracking/${traineeId}`), null);
-
-      console.log(`Trainee ${traineeId} auto checked out at ${AUTO_CHECKOUT_TIME}`);
-    });
+    );
 
     await Promise.all(checkOutPromises);
     console.log("Auto check-out process completed.");
@@ -552,6 +588,26 @@ export const autoCheckOutTrainees = async () => {
     console.error("Auto check-out error:", error);
   }
 };
+
+export function scheduleAutoCheckOut() {
+  const now = new Date();
+  const fivePm = new Date(now);
+
+  fivePm.setHours(17, 30, 0, 0);
+  if (fivePm < now) {
+    fivePm.setDate(fivePm.getDate() + 1);
+  }
+
+  const timeUntilNext5AM = fivePm - now;
+  console.log(
+    `🕐 Trainees will be auto checked out at: ${fivePm.toLocaleString()}`
+  );
+
+  setTimeout(() => {
+    autoCheckOutTrainees();
+    setInterval(autoCheckOutTrainees, 24 * 60 * 60 * 1000); // Run every 24 hours
+  }, timeUntilNext5AM);
+}
 
 // New controllers for the enhanced features
 export const recordAbsenteeism = async (req, res) => {

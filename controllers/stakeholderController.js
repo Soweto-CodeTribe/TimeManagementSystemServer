@@ -26,10 +26,13 @@ export const createStakeholder = async (req, res) => {
         const stakeholderData = {
             uid: user.uid,
             surname: req.body.surname,
-            name: req.body.name,
+            fullName: req.body.fullName,
             email: req.body.email,
             phoneNumber: req.body.phoneNumber,
-            organization: req.body.organization,
+            idNumber: req.body.idNumber,
+            street: req.body.street,
+            city: req.body.city,
+            postalCode: req.body.postalCode,
             role: 'stakeholder', // fixed role
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
@@ -108,8 +111,12 @@ export const deleteStakeholder = async (req, res) => {
             return res.status(404).json({ error: 'Stakeholder not found' });
         }
 
-        // Delete from Firebase Auth - this requires admin SDK in production
-        // For now, just delete from Firestore
+        // Delete from Firebase Auth
+        const user = auth.currentUser;
+        if (user) {
+            await deleteUser(user);
+        }
+        // Delete from Firestore
         await deleteDoc(doc(db, stakeholdersCollection, req.params.id));
         
         res.json({ message: 'Stakeholder deleted successfully' });

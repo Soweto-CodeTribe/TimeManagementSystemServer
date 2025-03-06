@@ -114,7 +114,7 @@ export const create_user = async (req, res) => {
       return res.status(403).json({ error: "Unauthorized: Not a facilitator" });
     }
     const {
-      name,
+      fullName,
       surname,
       age,
       gender,
@@ -124,12 +124,13 @@ export const create_user = async (req, res) => {
       location,
       street,
       city,
+      role,
       postalCode,
       messages,
       notifications,
     } = req.body;
 
-    if (!name || !surname || !phoneNumber || !idNumber || !email || !location) {
+    if (!fullName || !surname || !phoneNumber || !idNumber || !email || !location) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
@@ -164,7 +165,7 @@ export const create_user = async (req, res) => {
     const newTrainee = {
       traineeId: newTraineeId,
       uid,
-      name,
+      fullName,
       surname,
       ...(age && { age }),
       ...(gender && { gender }),
@@ -174,6 +175,7 @@ export const create_user = async (req, res) => {
       ...(location && { location }),
       ...(street && { street }),
       ...(city && { city }),
+      ...(role && { role }),
       ...(postalCode && { postalCode }),
       ...(messages && { messages }),
       ...(notifications && { notifications }),
