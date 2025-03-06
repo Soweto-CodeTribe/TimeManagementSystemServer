@@ -61,9 +61,9 @@ router.get("/program-stats", verifyToken, getProgramStats)
 router.get("/weekly-stats", verifyToken, getWeeklyStats);
 
 // Program date management routes
-router.post("/set-program-date", verifyToken, setProgramStartDate);
-router.post("/set-bulk-program-date", verifyToken, setBulkProgramStartDate);
-router.get("/trainee-program-info/:traineeId", verifyToken, getTraineeProgramInfo);
+router.post("/set-program-date", setProgramStartDate);
+router.post("/set-bulk-program-date", setBulkProgramStartDate);
+router.get("/trainee-program-info/:traineeId", getTraineeProgramInfo);
 
 
 // Stakeholder read-only routes
