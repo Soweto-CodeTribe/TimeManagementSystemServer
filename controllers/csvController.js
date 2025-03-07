@@ -143,7 +143,7 @@ async function registerTrainee(trainee) {
     const newTrainee = {
       traineeId: newTraineeId,
       uid,
-      name: trainee.name,
+      fullName: trainee.name,
       surname: trainee.surname,
       email: trainee.email,
       phoneNumber: trainee.phone,
@@ -153,6 +153,9 @@ async function registerTrainee(trainee) {
       idNumber: trainee.idNumber,
       qualification: trainee.qualification,
       address: trainee.address,
+      ...(street && { street }),
+      ...(city && { city }),
+      ...(postalCode && { postalCode }),
       role: "trainee",
       createdAt: serverTimestamp(),
     };
