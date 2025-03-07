@@ -1,5 +1,5 @@
 import { auth, db, serverTimestamp } from '../config/firebaseConfig.js';
-import { createUserWithEmailAndPassword, deleteUser } from 'firebase/auth';
+import { createUserWithEmailAndPassword, deleteUser, sendPasswordResetEmail } from 'firebase/auth';
 import { collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, where, updateDoc } from 'firebase/firestore';
 import { generateStakeholderToken } from '../utilities/index.js';
 import crypto from 'crypto';
@@ -21,6 +21,9 @@ export const createStakeholder = async (req, res) => {
         // Create user in Firebase Auth
         const userCredential = await createUserWithEmailAndPassword(auth, req.body.email, generatedPassword);
         const user = userCredential.user;
+
+        // Send password reset email
+                await sendPasswordResetEmail(auth, req.body.email);
 
         // Create stakeholder in Firestore
         const stakeholderData = {
