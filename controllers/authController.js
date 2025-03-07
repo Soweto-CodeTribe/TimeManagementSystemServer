@@ -20,6 +20,7 @@ import {
 } from "firebase/firestore";
 import generateToken from "../utilities/index.js";
 import { generateStakeholderToken } from "../utilities/index.js";
+import { sendVerificationCodeEmail } from "../services/emailService.js";
 
 async function getTraineeStats(traineeId) {
   if (!traineeId) {
@@ -93,6 +94,91 @@ const getUserDocRef = async (uid) => {
   return null;
 };
 
+// export const login = async (req, res) => {
+//   const { email, password } = req.body;
+
+//   try {
+//     // First authenticate with email/password
+//     const userCredential = await signInWithEmailAndPassword(
+//       auth,
+//       email,
+//       password
+//     );
+//     const user = userCredential.user;
+
+//     // Get the user document from either trainees or facilitators collection
+//     const userInfo = await getUserDocRef(user.uid);
+
+//     if (!userInfo) {
+//       return res.status(404).json({
+//         message: "User not found in trainees or facilitators collections",
+//       });
+//     }
+//     // console.log("User Info:", userInfo);
+//     // console.log("User Location:", userInfo.data.location);
+    
+//     // Check if 2FA is enabled for this user
+//     if (userInfo.data.twoFactorEnabled === true) {
+//       // Generate a verification code
+//       const verificationCode = generateVerificationCode();
+
+//       // Store the verification code in Firestore with an expiration time
+//       const verificationRef = await addDoc(
+//         collection(db, "verificationCodes"),
+//         {
+//           userId: user.uid,
+//           userType: userInfo.userType,
+//           code: verificationCode,
+//           createdAt: serverTimestamp(),
+//           expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes expiration
+//           used: false,
+//         }
+//       );
+
+//       return res.status(200).json({
+//         requires2FA: true,
+//         verificationId: verificationRef.id,
+//         verificationCode, // Fallback for testing
+//         message: "Unable to send SMS. Please use the code provided.",
+//       });
+//     }
+
+//     // 2FA not enabled, proceed with normal login
+//     // Fetch facilitator data if user is a facilitator
+//     let facilitatorData = null;
+//     if (userInfo.userType === "facilitator") {
+//       const facilitatorDocRef = doc(db, "facilitators", user.uid);
+//       const facilitatorDoc = await getDoc(facilitatorDocRef);
+//       if (facilitatorDoc.exists()) {
+//         facilitatorData = { id: facilitatorDoc.id, ...facilitatorDoc.data() };
+//       }
+//     }
+
+//     const token = generateToken({
+//       uid: user.uid,
+//       email: user.email,
+//       userType: userInfo.userType,
+//       location: userInfo.data.location
+//     });
+
+//     return res.status(200).json({
+//       token,
+//       user: user.email,
+//       userType: userInfo.userType,
+//       facilitator: facilitatorData,
+//     });
+//   } catch (error) {
+//     console.error("Login error:", error);
+
+//     // Handle errors
+//     return res.status(400).json({
+//       message: error.message,
+//       code: error.code,
+//     });
+//   }
+// };
+
+
 export const login = async (req, res) => {
   const { email, password } = req.body;
 
@@ -113,8 +199,6 @@ export const login = async (req, res) => {
         message: "User not found in trainees or facilitators collections",
       });
     }
-    // console.log("User Info:", userInfo);
-    // console.log("User Location:", userInfo.data.location);
     
     // Check if 2FA is enabled for this user
     if (userInfo.data.twoFactorEnabled === true) {
@@ -127,6 +211,7 @@ export const login = async (req, res) => {
         {
           userId: user.uid,
           userType: userInfo.userType,
+          email: user.email,
           code: verificationCode,
           createdAt: serverTimestamp(),
           expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes expiration
@@ -134,25 +219,21 @@ export const login = async (req, res) => {
         }
       );
 
+      // Send verification code via Brevo email
+      const emailSent = await sendVerificationCodeEmail(user.email, verificationCode);
+
       return res.status(200).json({
         requires2FA: true,
         verificationId: verificationRef.id,
-        verificationCode, // Fallback for testing
-        message: "Unable to send SMS. Please use the code provided.",
+        // Only include code in response for testing or if email fails
+        ...((!emailSent || process.env.NODE_ENV === 'development') && { verificationCode }),
+        message: emailSent 
+          ? "Verification code sent to your email" 
+          : "Unable to send email. Please use the code provided.",
       });
     }
 
-    // 2FA not enabled, proceed with normal login
-    // Fetch facilitator data if user is a facilitator
-    let facilitatorData = null;
-    if (userInfo.userType === "facilitator") {
-      const facilitatorDocRef = doc(db, "facilitators", user.uid);
-      const facilitatorDoc = await getDoc(facilitatorDocRef);
-      if (facilitatorDoc.exists()) {
-        facilitatorData = { id: facilitatorDoc.id, ...facilitatorDoc.data() };
-      }
-    }
-
+    // Rest of your login logic remains the same...
     const token = generateToken({
       uid: user.uid,
       email: user.email,
@@ -164,18 +245,17 @@ export const login = async (req, res) => {
       token,
       user: user.email,
       userType: userInfo.userType,
-      facilitator: facilitatorData,
+      facilitator: userInfo.userType === "facilitator" ? userInfo.data : null,
     });
   } catch (error) {
     console.error("Login error:", error);
-
-    // Handle errors
     return res.status(400).json({
       message: error.message,
       code: error.code,
     });
   }
 };
+
 
 //Trainee Login
 export const login_Trainee = async (req, res) => {
@@ -230,13 +310,27 @@ export const login_Trainee = async (req, res) => {
         }
       );
 
-      return res.status(200).json({
-        requires2FA: true,
-        verificationId: verificationRef.id,
-        verificationCode, // Only for testing!
-        message: "Multi-factor authentication required.",
-      });
+      // return res.status(200).json({
+      //   requires2FA: true,
+      //   verificationId: verificationRef.id,
+      //   verificationCode, // Only for testing!
+      //   message: "Multi-factor authentication required.",
+      // });
+
+       // Send verification code via Brevo email
+       const emailSent = await sendVerificationCodeEmail(user.email, verificationCode);
+
+       return res.status(200).json({
+         requires2FA: true,
+         verificationId: verificationRef.id,
+         ...((!emailSent || process.env.NODE_ENV === 'development') && { verificationCode }),
+         message: emailSent 
+           ? "Verification code sent to your email" 
+           : "Unable to send email. Please use the code provided.",
+       });
     }
+
+
 
     // Fetch trainee report by document ID (traineeId)
     const reports = await getTraineeStats(traineeData.id);
@@ -317,11 +411,23 @@ export const stakeholderLogin = async (req, res) => {
         }
       );
 
+      // return res.status(200).json({
+      //   requires2FA: true,
+      //   verificationId: verificationRef.id,
+      //   verificationCode, // For testing only - remove in production
+      //   message: "Multi-factor authentication required.",
+      // });
+
+      // Send verification code via Brevo email
+      const emailSent = await sendVerificationCodeEmail(user.email, verificationCode);
+
       return res.status(200).json({
         requires2FA: true,
         verificationId: verificationRef.id,
-        verificationCode, // For testing only - remove in production
-        message: "Multi-factor authentication required.",
+        ...((!emailSent || process.env.NODE_ENV === 'development') && { verificationCode }),
+        message: emailSent 
+          ? "Verification code sent to your email" 
+          : "Unable to send email. Please use the code provided.",
       });
     }
     
@@ -354,13 +460,68 @@ export const stakeholderLogin = async (req, res) => {
 };
 
 
+// export const enable2FA = async (req, res) => {
+//   const { phoneNumber } = req.body;
+
+//   if (!phoneNumber) {
+//     return res.status(400).json({ message: "Phone number is required" });
+//   }
+
+//   try {
+//     const user = auth.currentUser;
+//     if (!user) {
+//       return res.status(401).json({ message: "User not authenticated" });
+//     }
+
+//     // Get the user's information
+//     const userInfo = await getUserDocRef(user.uid);
+//     if (!userInfo) {
+//       return res.status(404).json({ message: "User not found" });
+//     }
+
+//     // Generate a 6-digit verification code
+//     const verificationCode = generateVerificationCode();
+
+//     // Store the verification code in Firestore with an expiration time
+//     const verificationRef = await addDoc(
+//       collection(db, "verificationCodes"),
+//       {
+//         userId: user.uid,
+//         userType: userInfo.userType,
+//         phoneNumber: phoneNumber,
+//         code: verificationCode,
+//         createdAt: serverTimestamp(),
+//         expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes expiration
+//         used: false,
+//       }
+//     );
+
+//     // Update user document to prepare for 2FA
+//     await updateDoc(userInfo.docRef, {
+//       phoneNumber: phoneNumber,
+//       twoFactorEnabled: true,
+//       verificationId: verificationRef.id,
+//       updatedAt: serverTimestamp(),
+//     });
+
+//     return res.status(200).json({
+//       message: "Verification code generated",
+//       verificationId: verificationRef.id,
+//       phoneNumber: phoneNumber,
+//       // In production, DO NOT send the actual code back
+//       // This is just for testing purposes
+//       verificationCode: verificationCode 
+//     });
+//   } catch (error) {
+//     console.error("Enable 2FA error:", error);
+//     return res.status(500).json({
+//       message: error.message,
+//     });
+//   }
+// };
+
+
 export const enable2FA = async (req, res) => {
-  const { phoneNumber } = req.body;
-
-  if (!phoneNumber) {
-    return res.status(400).json({ message: "Phone number is required" });
-  }
-
   try {
     const user = auth.currentUser;
     if (!user) {
@@ -373,6 +534,8 @@ export const enable2FA = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
+    const email = userInfo.data.email || user.email;
+
     // Generate a 6-digit verification code
     const verificationCode = generateVerificationCode();
 
@@ -382,7 +545,7 @@ export const enable2FA = async (req, res) => {
       {
         userId: user.uid,
         userType: userInfo.userType,
-        phoneNumber: phoneNumber,
+        email: email,
         code: verificationCode,
         createdAt: serverTimestamp(),
         expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes expiration
@@ -390,21 +553,25 @@ export const enable2FA = async (req, res) => {
       }
     );
 
-    // Update user document to prepare for 2FA
+    // Send verification code via Brevo email
+    const emailSent = await sendVerificationCodeEmail(email, verificationCode);
+
+    // Update user document to enable 2FA
     await updateDoc(userInfo.docRef, {
-      phoneNumber: phoneNumber,
       twoFactorEnabled: true,
       verificationId: verificationRef.id,
       updatedAt: serverTimestamp(),
     });
 
     return res.status(200).json({
-      message: "Verification code generated",
+      message: emailSent 
+        ? "Verification code sent to your email" 
+        : "Unable to send email. Please try again later.",
       verificationId: verificationRef.id,
-      phoneNumber: phoneNumber,
-      // In production, DO NOT send the actual code back
-      // This is just for testing purposes
-      verificationCode: verificationCode 
+      email: email,
+      // In production, only return the verification code if email failed
+      // and only for testing purposes
+      ...((!emailSent || process.env.NODE_ENV === 'development') && { verificationCode })
     });
   } catch (error) {
     console.error("Enable 2FA error:", error);
@@ -413,6 +580,7 @@ export const enable2FA = async (req, res) => {
     });
   }
 };
+
 
 export const verify2FA = async (req, res) => {
   const { verificationId, verificationCode } = req.body;
