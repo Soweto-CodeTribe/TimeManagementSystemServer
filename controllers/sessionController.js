@@ -69,25 +69,31 @@ export const isWorkingDay = async (date) => {
 };
 
 const checkTime = (checkInTime) => {
-  let [time, modifier] = checkInTime.split(" ");
-  let [hours, minutes] = time.split(":").map(Number);
+  if (!checkInTime || !checkInTime.includes(":")) {
+    throw new Error(`Invalid time format: ${checkInTime}`);
+  }
 
-  if (modifier === "PM" && hours !== 12) {
-    hours += 12;
-  } else if (modifier === "AM" && hours === 12) {
-    hours = 0;
+  const [hours, minutes] = checkInTime.split(":").map(Number);
+
+  if (
+    isNaN(hours) ||
+    isNaN(minutes) ||
+    hours < 0 ||
+    hours > 23 ||
+    minutes < 0 ||
+    minutes > 59
+  ) {
+    throw new Error(`Invalid time values: ${checkInTime}`);
   }
 
   const totalMinutes = hours * 60 + minutes;
 
   if (totalMinutes < 480) {
     return "Early";
-  } else if (totalMinutes >= 481 && totalMinutes <= 490) {
+  } else if (totalMinutes <= 490) {
     return "Within grace period";
   } else if (totalMinutes > 496) {
     return "Late";
-  } else {
-    return "On time";
   }
 };
 
