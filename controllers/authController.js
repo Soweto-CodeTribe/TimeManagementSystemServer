@@ -4,7 +4,7 @@ import {
   signInWithCredential,
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
-  RecaptchaVerifier
+  RecaptchaVerifier,
 } from "firebase/auth";
 import {
   doc,
@@ -21,6 +21,7 @@ import {
 import generateToken from "../utilities/index.js";
 import { generateStakeholderToken } from "../utilities/index.js";
 import { sendVerificationCodeEmail } from "../services/emailService.js";
+import { tokenBlacklist } from "../utilities/usedTokens.js";
 
 async function getTraineeStats(traineeId) {
   if (!traineeId) {
@@ -78,7 +79,6 @@ const getUserDocRef = async (uid) => {
     };
   }
 
-
   // Check if user is a stakeholder
   const stakeholderDocRef = doc(db, "stakeholders", uid);
   const stakeholderDoc = await getDoc(stakeholderDocRef);
@@ -116,7 +116,7 @@ const getUserDocRef = async (uid) => {
 //     }
 //     // console.log("User Info:", userInfo);
 //     // console.log("User Location:", userInfo.data.location);
-    
+
 //     // Check if 2FA is enabled for this user
 //     if (userInfo.data.twoFactorEnabled === true) {
 //       // Generate a verification code
@@ -178,7 +178,6 @@ const getUserDocRef = async (uid) => {
 //   }
 // };
 
-
 export const login = async (req, res) => {
   const { email, password } = req.body;
 
@@ -199,7 +198,7 @@ export const login = async (req, res) => {
         message: "User not found in trainees or facilitators collections",
       });
     }
-    
+
     // Check if 2FA is enabled for this user
     if (userInfo.data.twoFactorEnabled === true) {
       // Generate a verification code
@@ -220,15 +219,20 @@ export const login = async (req, res) => {
       );
 
       // Send verification code via Brevo email
-      const emailSent = await sendVerificationCodeEmail(user.email, verificationCode);
+      const emailSent = await sendVerificationCodeEmail(
+        user.email,
+        verificationCode
+      );
 
       return res.status(200).json({
         requires2FA: true,
         verificationId: verificationRef.id,
         // Only include code in response for testing or if email fails
-        ...((!emailSent || process.env.NODE_ENV === 'development') && { verificationCode }),
-        message: emailSent 
-          ? "Verification code sent to your email" 
+        ...((!emailSent || process.env.NODE_ENV === "development") && {
+          verificationCode,
+        }),
+        message: emailSent
+          ? "Verification code sent to your email"
           : "Unable to send email. Please use the code provided.",
       });
     }
@@ -238,7 +242,7 @@ export const login = async (req, res) => {
       uid: user.uid,
       email: user.email,
       userType: userInfo.userType,
-      location: userInfo.data.location
+      location: userInfo.data.location,
     });
 
     return res.status(200).json({
@@ -255,7 +259,6 @@ export const login = async (req, res) => {
     });
   }
 };
-
 
 //Trainee Login
 export const login_Trainee = async (req, res) => {
@@ -317,20 +320,23 @@ export const login_Trainee = async (req, res) => {
       //   message: "Multi-factor authentication required.",
       // });
 
-       // Send verification code via Brevo email
-       const emailSent = await sendVerificationCodeEmail(user.email, verificationCode);
+      // Send verification code via Brevo email
+      const emailSent = await sendVerificationCodeEmail(
+        user.email,
+        verificationCode
+      );
 
-       return res.status(200).json({
-         requires2FA: true,
-         verificationId: verificationRef.id,
-         ...((!emailSent || process.env.NODE_ENV === 'development') && { verificationCode }),
-         message: emailSent 
-           ? "Verification code sent to your email" 
-           : "Unable to send email. Please use the code provided.",
-       });
+      return res.status(200).json({
+        requires2FA: true,
+        verificationId: verificationRef.id,
+        ...((!emailSent || process.env.NODE_ENV === "development") && {
+          verificationCode,
+        }),
+        message: emailSent
+          ? "Verification code sent to your email"
+          : "Unable to send email. Please use the code provided.",
+      });
     }
-
-
 
     // Fetch trainee report by document ID (traineeId)
     const reports = await getTraineeStats(traineeData.id);
@@ -358,41 +364,64 @@ export const login_Trainee = async (req, res) => {
   }
 };
 
+export const logout = async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(" ")[1];
+    if (!token) {
+      return res.status(401).json({ message: "No token provided" });
+    }
+
+    // Add token to blacklist
+    tokenBlacklist.push(token);
+
+    await auth.signOut();
+
+    res.status(200).json({ message: "User logged out successfully" });
+  } catch (error) {
+    res.status(500).json({
+      message: `An error occurred while trying to log out: ${error}`,
+    });
+  }
+};
 
 export const stakeholderLogin = async (req, res) => {
   try {
     const { email, password } = req.body;
-    
+
     if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required' });
+      return res.status(400).json({ error: "Email and password are required" });
     }
-    
+
     // First, authenticate with Firebase Auth
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    const userCredential = await signInWithEmailAndPassword(
+      auth,
+      email,
+      password
+    );
     const user = userCredential.user;
-    
+
     // Get the user document
     const userInfo = await getUserDocRef(user.uid);
-    
-    if (!userInfo || userInfo.userType !== 'stakeholder') {
-      return res.status(403).json({ 
-        error: 'Account is not a registered stakeholder',
-        requiresTokenRequest: true
+
+    if (!userInfo || userInfo.userType !== "stakeholder") {
+      return res.status(403).json({
+        error: "Account is not a registered stakeholder",
+        requiresTokenRequest: true,
       });
     }
-    
+
     const stakeholderData = userInfo.data;
-    
+
     // Check token status - they need to request a token
-    if (stakeholderData.tokenStatus !== 'active') {
+    if (stakeholderData.tokenStatus !== "active") {
       return res.status(403).json({
-        error: 'You need to request access from a super admin',
+        error: "You need to request access from a super admin",
         stakeholderId: user.uid,
         email: stakeholderData.email,
-        requiresTokenRequest: true
+        requiresTokenRequest: true,
       });
     }
-    
+
     // Check if 2FA is enabled for this stakeholder
     if (stakeholderData.twoFactorEnabled === true) {
       // Use the existing 2FA flow
@@ -419,46 +448,49 @@ export const stakeholderLogin = async (req, res) => {
       // });
 
       // Send verification code via Brevo email
-      const emailSent = await sendVerificationCodeEmail(user.email, verificationCode);
+      const emailSent = await sendVerificationCodeEmail(
+        user.email,
+        verificationCode
+      );
 
       return res.status(200).json({
         requires2FA: true,
         verificationId: verificationRef.id,
-        ...((!emailSent || process.env.NODE_ENV === 'development') && { verificationCode }),
-        message: emailSent 
-          ? "Verification code sent to your email" 
+        ...((!emailSent || process.env.NODE_ENV === "development") && {
+          verificationCode,
+        }),
+        message: emailSent
+          ? "Verification code sent to your email"
           : "Unable to send email. Please use the code provided.",
       });
     }
-    
+
     // 2FA not enabled, proceed with normal login
     // Update token timestamp
     await updateDoc(userInfo.docRef, {
-      tokenLastUpdated: serverTimestamp()
+      tokenLastUpdated: serverTimestamp(),
     });
-    
+
     // Generate a 24-hour access token
     const token = generateStakeholderToken({
       uid: user.uid,
       email: stakeholderData.email,
-      name: stakeholderData.name
+      name: stakeholderData.name,
     });
-    
+
     res.json({
       uid: user.uid,
       email: stakeholderData.email,
       name: stakeholderData.name,
-      role: 'stakeholder',
+      role: "stakeholder",
       accessToken: token,
-      expiresIn: '24 hours'
+      expiresIn: "24 hours",
     });
-    
   } catch (error) {
-    console.error('Stakeholder login error:', error);
-    res.status(401).json({ error: 'Invalid credentials' });
+    console.error("Stakeholder login error:", error);
+    res.status(401).json({ error: "Invalid credentials" });
   }
 };
-
 
 // export const enable2FA = async (req, res) => {
 //   const { phoneNumber } = req.body;
@@ -510,7 +542,7 @@ export const stakeholderLogin = async (req, res) => {
 //       phoneNumber: phoneNumber,
 //       // In production, DO NOT send the actual code back
 //       // This is just for testing purposes
-//       verificationCode: verificationCode 
+//       verificationCode: verificationCode
 //     });
 //   } catch (error) {
 //     console.error("Enable 2FA error:", error);
@@ -519,7 +551,6 @@ export const stakeholderLogin = async (req, res) => {
 //     });
 //   }
 // };
-
 
 export const enable2FA = async (req, res) => {
   try {
@@ -540,18 +571,15 @@ export const enable2FA = async (req, res) => {
     const verificationCode = generateVerificationCode();
 
     // Store the verification code in Firestore with an expiration time
-    const verificationRef = await addDoc(
-      collection(db, "verificationCodes"),
-      {
-        userId: user.uid,
-        userType: userInfo.userType,
-        email: email,
-        code: verificationCode,
-        createdAt: serverTimestamp(),
-        expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes expiration
-        used: false,
-      }
-    );
+    const verificationRef = await addDoc(collection(db, "verificationCodes"), {
+      userId: user.uid,
+      userType: userInfo.userType,
+      email: email,
+      code: verificationCode,
+      createdAt: serverTimestamp(),
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes expiration
+      used: false,
+    });
 
     // Send verification code via Brevo email
     const emailSent = await sendVerificationCodeEmail(email, verificationCode);
@@ -564,14 +592,16 @@ export const enable2FA = async (req, res) => {
     });
 
     return res.status(200).json({
-      message: emailSent 
-        ? "Verification code sent to your email" 
+      message: emailSent
+        ? "Verification code sent to your email"
         : "Unable to send email. Please try again later.",
       verificationId: verificationRef.id,
       email: email,
       // In production, only return the verification code if email failed
       // and only for testing purposes
-      ...((!emailSent || process.env.NODE_ENV === 'development') && { verificationCode })
+      ...((!emailSent || process.env.NODE_ENV === "development") && {
+        verificationCode,
+      }),
     });
   } catch (error) {
     console.error("Enable 2FA error:", error);
@@ -580,7 +610,6 @@ export const enable2FA = async (req, res) => {
     });
   }
 };
-
 
 export const verify2FA = async (req, res) => {
   const { verificationId, verificationCode } = req.body;
@@ -664,39 +693,38 @@ export const verify2FA = async (req, res) => {
       });
     }
 
-
     // If verification successful and user is a stakeholder
-  if (verificationData.userType === "stakeholder") {
-    // Get stakeholder data that's already retrieved
-    const stakeholderData = { id: userInfo.docRef.id, ...userInfo.data };
-    
-    // Check token status
-    if (stakeholderData.tokenStatus !== 'active') {
-      return res.status(403).json({
-        error: 'Your access token is not active',
-        requiresTokenRequest: true
+    if (verificationData.userType === "stakeholder") {
+      // Get stakeholder data that's already retrieved
+      const stakeholderData = { id: userInfo.docRef.id, ...userInfo.data };
+
+      // Check token status
+      if (stakeholderData.tokenStatus !== "active") {
+        return res.status(403).json({
+          error: "Your access token is not active",
+          requiresTokenRequest: true,
+        });
+      }
+
+      // Update token timestamp
+      await updateDoc(userInfo.docRef, {
+        tokenLastUpdated: serverTimestamp(),
+      });
+
+      // Generate stakeholder token
+      const token = generateStakeholderToken({
+        uid: userId,
+        email: stakeholderData.email,
+        name: stakeholderData.name,
+      });
+
+      return res.status(200).json({
+        ...baseResponse,
+        role: "stakeholder",
+        accessToken: token,
+        expiresIn: "24 hours",
       });
     }
-    
-    // Update token timestamp
-    await updateDoc(userInfo.docRef, {
-      tokenLastUpdated: serverTimestamp()
-    });
-    
-    // Generate stakeholder token
-    const token = generateStakeholderToken({
-      uid: userId,
-      email: stakeholderData.email,
-      name: stakeholderData.name
-    });
-    
-    return res.status(200).json({
-      ...baseResponse,
-      role: 'stakeholder',
-      accessToken: token,
-      expiresIn: '24 hours'
-    });
-  }
 
     // For non-trainee users, return just the base response
     return res.status(200).json(baseResponse);
