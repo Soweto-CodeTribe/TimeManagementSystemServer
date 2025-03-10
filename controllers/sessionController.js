@@ -69,30 +69,23 @@ export const isWorkingDay = async (date) => {
 };
 
 const checkTime = (checkInTime) => {
-  if (!checkInTime || !checkInTime.includes(":")) {
+  if (!checkInTime || !checkInTime.includes(':')) {
     throw new Error(`Invalid time format: ${checkInTime}`);
   }
-
-  const [hours, minutes] = checkInTime.split(":").map(Number);
-
-  if (
-    isNaN(hours) ||
-    isNaN(minutes) ||
-    hours < 0 ||
-    hours > 23 ||
-    minutes < 0 ||
-    minutes > 59
-  ) {
+  
+  const [hours, minutes] = checkInTime.split(':').map(Number);
+  
+  if (isNaN(hours) || isNaN(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
     throw new Error(`Invalid time values: ${checkInTime}`);
   }
-
+  
   const totalMinutes = hours * 60 + minutes;
-
-  if (totalMinutes < 480) {
+  
+  if (totalMinutes < 480) {           
     return "Early";
-  } else if (totalMinutes <= 490) {
+  } else if (totalMinutes <= 490) {   
     return "Within grace period";
-  } else if (totalMinutes > 496) {
+  } else {                            
     return "Late";
   }
 };
@@ -155,22 +148,14 @@ export const checkIn = async (req, res) => {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    // Check if trainee already has a record for today in RTDB
-    const rtdbSnapshot = await get(ref(rtdb, `liveTracking/${traineeId}`));
-    const rtdbData = rtdbSnapshot.val();
-
-    const timestamp = Date.now();
-    const today = new Date().toISOString().split("T")[0];
-
-    if (rtdbData && rtdbData.currentDate === today) {
-      return res.status(200).json({
-        message: `${rtdbData.name} you have already checked in at ${rtdbData.checkInTime}`,
-        checkInTime: rtdbData.checkInTime,
-      });
-    }
-
     // Standardize time format to 24-hour
     const standardizedCheckInTime = standardizeTimeFormat(checkInTime);
+    
+    // Get time status using the 24-hour format time
+    const timeStatus = checkTime(standardizedCheckInTime);
+    
+    const timestamp = Date.now();
+    const today = new Date().toISOString().split("T")[0];
 
     // Check if today is a working day
     const workingDay = await isWorkingDay(today);
@@ -178,6 +163,17 @@ export const checkIn = async (req, res) => {
       return res.status(200).json({
         message: "Check-in recorded, but today is not a working day",
         isWorkingDay: false,
+      });
+    }
+
+    // Check if trainee already has a record for today in RTDB
+    const rtdbSnapshot = await get(ref(rtdb, `liveTracking/${traineeId}`));
+    const rtdbData = rtdbSnapshot.val();
+
+    if (rtdbData && rtdbData.currentDate === today) {
+      return res.status(200).json({
+        message: `${rtdbData.name} you have already checked in at ${rtdbData.checkInTime}`,
+        checkInTime: rtdbData.checkInTime,
       });
     }
 
@@ -195,7 +191,11 @@ export const checkIn = async (req, res) => {
     const { ref: reportRef, today: reportDate } = await getTodayReportDoc(
       traineeId
     );
-    const timeStatus = checkTime(standardizedCheckInTime);
+
+    // Ensure we have a valid status before saving to Firestore
+    if (!timeStatus) {
+      throw new Error(`Failed to determine time status for: ${standardizedCheckInTime}`);
+    }
 
     await setDoc(
       reportRef,
