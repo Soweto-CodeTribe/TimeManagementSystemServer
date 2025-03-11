@@ -102,7 +102,7 @@ import {
     }
   };
   
-  // Get all trainees' weekly statistics
+  
   // Get all trainees' weekly statistics
 export const getAllTraineesWeeklyStats = async (req, res) => {
   try {
