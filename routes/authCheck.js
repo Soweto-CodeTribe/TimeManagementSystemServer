@@ -1,7 +1,7 @@
 import express from "express";
 
 import { verifyToken } from "../utilities/index.js";
-import { create_user, delete_User, update_User, deleted_Users, get_Users, get_Users_By_Location } from "../controllers/userController.js";
+import { create_user, delete_User, update_User, deleted_Users, get_Users, get_Users_By_Location, traineeManagementOverview } from "../controllers/userController.js";
 import { trainee_id, update_Trainee } from '../controllers/traineeController.js';
 import {  isSuperAdmin, completeStakeholderAccess} from '../middleware/auth.js';
 
@@ -22,6 +22,8 @@ router.get("/deletedTrainees",verifyToken, deleted_Users);
 
 router.get("/trainee", verifyToken, trainee_id);
 router.put("/profile-update", verifyToken, update_Trainee)
+
+router.get("/trainee-overview",verifyToken, traineeManagementOverview);
 
 
 // Stakeholder read-only routes

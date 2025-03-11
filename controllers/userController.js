@@ -16,6 +16,7 @@ import {
 } from "firebase/auth";
 import crypto from "crypto";
 import { db, auth, serverTimestamp } from "../config/firebaseConfig.js";
+import { getAllTraineesProgramStats } from "./superAdminReportController.js";
 
 // Function to generate a secure random password
 const generatePassword = (length = 12) => {
@@ -130,7 +131,14 @@ export const create_user = async (req, res) => {
       notifications,
     } = req.body;
 
-    if (!fullName || !surname || !phoneNumber || !idNumber || !email || !location) {
+    if (
+      !fullName ||
+      !surname ||
+      !phoneNumber ||
+      !idNumber ||
+      !email ||
+      !location
+    ) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
@@ -294,6 +302,107 @@ export const deleted_Users = async (req, res) => {
     res.status(500).json({
       error: "Failed to fetch deleted trainees",
       details: error.message,
+    });
+  }
+};
+
+export const traineeManagementOverview = async (req, res) => {
+  try {
+    const today = new Date().toISOString().split("T")[0];
+
+    const location = req.location;
+
+    const mockReq = {
+      query: {
+        startDate: "2024-06-11",
+        endDate: today,
+      },
+    };
+
+    let responseData;
+
+    const mockRes = {
+      json: (data) => {
+        responseData = data;
+      },
+      status: (code) => ({
+        json: (data) => {
+          console.log(`Status ${code}:`);
+          responseData = data;
+        },
+      }),
+    };
+
+    await getAllTraineesProgramStats(mockReq, mockRes);
+
+    if (!responseData) {
+      throw new Error("No data returned from getAllTraineesProgramStats");
+    }
+
+    const calculateWorkingDays = (startDate, endDate) => {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      let workingDays = 0;
+
+      const current = new Date(start);
+      while (current <= end) {
+        const dayOfWeek = current.getDay();
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+          workingDays++;
+        }
+        current.setDate(current.getDate() + 1);
+      }
+
+      return workingDays;
+    };
+
+    const categorizeAttendance = (percentage) => {
+      if (percentage < 30) return "Poor";
+      if (percentage < 60) return "Below Average";
+      if (percentage < 80) return "Average";
+      if (percentage < 90) return "Good";
+      return "Excellent";
+    };
+
+    const startDate = responseData.startDate;
+
+    const sixMonthsLater = new Date(startDate);
+    sixMonthsLater.setMonth(sixMonthsLater.getMonth() + 6);
+    const sixMonthEndDate = sixMonthsLater.toISOString().split("T")[0];
+
+    const totalWorkingDays = calculateWorkingDays(startDate, sixMonthEndDate);
+
+    let filteredProgramStats = responseData.programStats;
+
+    if (location) {
+      filteredProgramStats = responseData.programStats.filter(
+        (trainee) => trainee.traineeLocation === location
+      );
+    }
+
+    // Add attendance percentage and level to each trainee
+    const enhancedStats = {
+      ...responseData,
+      totalWorkingDays,
+      ...(location && { filteredByLocation: location }),
+      programStats: filteredProgramStats.map((trainee) => {
+        const attendancePercentage =
+          (trainee.attendedDays / totalWorkingDays) * 100;
+        return {
+          ...trainee,
+          attendancePercentage: attendancePercentage.toFixed(2) + "%",
+          attendanceLevel: categorizeAttendance(attendancePercentage),
+        };
+      }),
+    };
+
+    // console.log("Enhanced Stats:", enhancedStats);
+    // return enhancedStats;
+    res.status(200).json(enhancedStats);
+  } catch (error) {
+    res.status(500).json({
+      error: "Error calculating attendance:",
+      message: error.message,
     });
   }
 };
