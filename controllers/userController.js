@@ -309,20 +309,13 @@ export const deleted_Users = async (req, res) => {
 export const traineeManagementOverview = async (req, res) => {
   try {
     const today = new Date().toISOString().split("T")[0];
-
-    const location = req.location;
-
-    const mockReq = {
-      query: {
-        startDate: "2024-06-11",
-        endDate: today,
-      },
-    };
+    const mockReq = { query: { startDate: "2024-06-11", endDate: today } };
 
     let responseData;
 
     const mockRes = {
       json: (data) => {
+        // console.log("Response:", data);
         responseData = data;
       },
       status: (code) => ({
@@ -334,10 +327,6 @@ export const traineeManagementOverview = async (req, res) => {
     };
 
     await getAllTraineesProgramStats(mockReq, mockRes);
-
-    if (!responseData) {
-      throw new Error("No data returned from getAllTraineesProgramStats");
-    }
 
     const calculateWorkingDays = (startDate, endDate) => {
       const start = new Date(startDate);
@@ -372,20 +361,11 @@ export const traineeManagementOverview = async (req, res) => {
 
     const totalWorkingDays = calculateWorkingDays(startDate, sixMonthEndDate);
 
-    let filteredProgramStats = responseData.programStats;
-
-    if (location) {
-      filteredProgramStats = responseData.programStats.filter(
-        (trainee) => trainee.traineeLocation === location
-      );
-    }
-
     // Add attendance percentage and level to each trainee
     const enhancedStats = {
       ...responseData,
       totalWorkingDays,
-      ...(location && { filteredByLocation: location }),
-      programStats: filteredProgramStats.map((trainee) => {
+      programStats: responseData.programStats.map((trainee) => {
         const attendancePercentage =
           (trainee.attendedDays / totalWorkingDays) * 100;
         return {
@@ -397,12 +377,16 @@ export const traineeManagementOverview = async (req, res) => {
     };
 
     // console.log("Enhanced Stats:", enhancedStats);
-    // return enhancedStats;
     res.status(200).json(enhancedStats);
   } catch (error) {
-    res.status(500).json({
-      error: "Error calculating attendance:",
-      message: error.message,
-    });
+    console.error("Error calculating attendance:", error.message);
+    res
+      .status(500)
+      .json({ error: "Error calculating attendance:", message: error.message });
+
+    if (res && typeof res.status === "function") {
+      return res.status(500).json({ error: error.message });
+    }
+    return { error: error.message };
   }
 };

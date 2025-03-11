@@ -23,7 +23,7 @@ router.get("/deletedTrainees",verifyToken, deleted_Users);
 router.get("/trainee", verifyToken, trainee_id);
 router.put("/profile-update", verifyToken, update_Trainee)
 
-router.get("/trainee-overview",verifyToken, traineeManagementOverview);
+router.get("/trainee-overview", traineeManagementOverview);
 
 
 // Stakeholder read-only routes
