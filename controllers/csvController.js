@@ -118,7 +118,7 @@ async function registerTrainee(trainee) {
 
     // Update display name to match trainee's name
     await updateProfile(userCredential.user, {
-      displayName: `${trainee.name}`,
+      displayName: `${trainee.fullName}`,
     });
 
     // Send password reset email
@@ -149,9 +149,13 @@ async function registerTrainee(trainee) {
       phoneNumber: trainee.phoneNumber,
       location: trainee.location,
       idNumber: trainee.idNumber,
-      ...(street && { street }),
-      ...(city && { city }),
-      ...(postalCode && { postalCode }),
+      street: trainee.street,
+      city: trainee.city,
+      postalCode: trainee.postalCode,
+
+      // ...(street && { street }),
+      // ...(city && { city }),
+      // ...(postalCode && { postalCode }),
       role: "trainee",
       createdAt: serverTimestamp(),
     };
