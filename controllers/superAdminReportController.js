@@ -292,47 +292,46 @@ export const getAllTraineesWeeklyStats = async (req, res) => {
                 });
               }
             }
+  
+            // Calculate summary statistics
+            const attendedDays = monthlyData.filter(
+              (day) => day.checkInTime && day.isWorkingDay
+            );
+            const totalWorkingHours = attendedDays.reduce(
+              (sum, day) => sum + (parseFloat(day.totalHoursWorked) || 0),
+              0
+            );
+            const totalLunchMinutes = attendedDays.reduce(
+              (sum, day) => sum + (parseInt(day.totalLunchMinutes) || 0),
+              0
+            );
+  
+            monthlyStats.push({
+              traineeId: trainee.id,
+              traineeName: trainee.name,
+              attendedDays: attendedDays.length,
+              totalWorkingHours: totalWorkingHours.toFixed(2),
+              totalLunchMinutes,
+              totalLunchHours: (totalLunchMinutes / 60).toFixed(2),
+            });
           }
-
-          // Calculate summary statistics
-          const attendedDays = monthlyData.filter(
-            (day) => day.checkInTime && day.isWorkingDay
-          );
-          const totalWorkingHours = attendedDays.reduce(
-            (sum, day) => sum + (parseFloat(day.totalHoursWorked) || 0),
-            0
-          );
-          const totalLunchMinutes = attendedDays.reduce(
-            (sum, day) => sum + (parseInt(day.totalLunchMinutes) || 0),
-            0
-          );
-
-          monthlyStats.push({
-            traineeId: trainee.id,
-            traineeName: trainee.name,
-            attendedDays: attendedDays.length,
-            totalWorkingHours: totalWorkingHours.toFixed(2),
-            totalLunchMinutes,
-            totalLunchHours: (totalLunchMinutes / 60).toFixed(2),
-          });
-        })
+        })();
+  
+        promises.push(checkPromise);
       });
-
-      promises.push(checkPromise);
-    
-
-    await Promise.all(promises);
-
-    res.status(200).json({
-      month: targetMonth + 1,
-      year: targetYear,
-      monthlyStats,
-    });
-  } catch (error) {
-    console.error("Monthly stats error:", error);
-    res.status(500).json({ error: "Failed to retrieve monthly statistics" });
-  }
-};
+  
+      await Promise.all(promises);
+  
+      res.status(200).json({
+        month: targetMonth + 1,
+        year: targetYear,
+        monthlyStats,
+      });
+    } catch (error) {
+      console.error("Monthly stats error:", error);
+      res.status(500).json({ error: "Failed to retrieve monthly statistics" });
+    }
+  };
 
 // Get all trainees' program statistics
 export const getAllTraineesProgramStats = async (req, res) => {
