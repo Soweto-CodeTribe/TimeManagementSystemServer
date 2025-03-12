@@ -229,6 +229,15 @@ import {
           const reportRef = doc(db, `reports/${trainee.id}`);
           const reportDoc = await getDoc(reportRef);
   
+          const traineeStats = {
+            traineeId: trainee.id,
+            traineeName: trainee.name,
+            attendedDays: 0,
+            totalWorkingHours: 0,
+            totalLunchMinutes: 0,
+            totalLunchHours: 0,
+          };
+  
           if (reportDoc.exists()) {
             const reportData = reportDoc.data();
             const monthlyData = [];
@@ -256,15 +265,13 @@ import {
               0
             );
   
-            monthlyStats.push({
-              traineeId: trainee.id,
-              traineeName: trainee.name,
-              attendedDays: attendedDays.length,
-              totalWorkingHours: totalWorkingHours.toFixed(2),
-              totalLunchMinutes,
-              totalLunchHours: (totalLunchMinutes / 60).toFixed(2),
-            });
+            traineeStats.attendedDays = attendedDays.length;
+            traineeStats.totalWorkingHours = totalWorkingHours.toFixed(2);
+            traineeStats.totalLunchMinutes = totalLunchMinutes;
+            traineeStats.totalLunchHours = (totalLunchMinutes / 60).toFixed(2);
           }
+  
+          monthlyStats.push(traineeStats);
         })();
   
         promises.push(checkPromise);

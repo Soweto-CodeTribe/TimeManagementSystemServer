@@ -118,7 +118,7 @@ async function registerTrainee(trainee) {
 
     // Update display name to match trainee's name
     await updateProfile(userCredential.user, {
-      displayName: `${trainee.name}`,
+      displayName: `${trainee.fullName}`,
     });
 
     // Send password reset email
@@ -143,16 +143,19 @@ async function registerTrainee(trainee) {
     const newTrainee = {
       traineeId: newTraineeId,
       uid,
-      name: trainee.name,
+      fullName: trainee.fullName,
       surname: trainee.surname,
       email: trainee.email,
-      phoneNumber: trainee.phone,
+      phoneNumber: trainee.phoneNumber,
       location: trainee.location,
-      gender: trainee.gender,
-      age: parseInt(trainee.age),
       idNumber: trainee.idNumber,
-      qualification: trainee.qualification,
-      address: trainee.address,
+      street: trainee.street,
+      city: trainee.city,
+      postalCode: trainee.postalCode,
+
+      // ...(street && { street }),
+      // ...(city && { city }),
+      // ...(postalCode && { postalCode }),
       role: "trainee",
       createdAt: serverTimestamp(),
     };

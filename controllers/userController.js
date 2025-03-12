@@ -9,6 +9,10 @@ import {
   getDocs,
   query,
   where,
+  orderBy, 
+  limit, 
+  startAfter, 
+  getCountFromServer 
 } from "firebase/firestore";
 import {
   createUserWithEmailAndPassword,
@@ -16,6 +20,7 @@ import {
 } from "firebase/auth";
 import crypto from "crypto";
 import { db, auth, serverTimestamp } from "../config/firebaseConfig.js";
+import { getAllTraineesProgramStats } from "./superAdminReportController.js";
 
 // Function to generate a secure random password
 const generatePassword = (length = 12) => {
@@ -41,6 +46,63 @@ export const get_Users = async (req, res) => {
 };
 
 //GET METHOD Trainee
+// export const get_Users_By_Location = async (req, res) => {
+//   try {
+//     // Check if user exists and has uid
+//     if (!req.user || !req.user.uid) {
+//       return res.status(401).json({ error: "User not authenticated" });
+//     }
+
+//     // Get facilitator's details to check location
+//     const facilitatorRef = doc(db, "facilitators", req.user.uid);
+//     const facilitatorDoc = await getDoc(facilitatorRef);
+
+//     if (!facilitatorDoc.exists()) {
+//       return res.status(403).json({ error: "Unauthorized: Not a facilitator" });
+//     }
+
+//     const facilitatorLocation = facilitatorDoc.data().location;
+//     console.log("facilitator location: ", facilitatorLocation);
+
+//     if (!facilitatorLocation) {
+//       return res.status(400).json({ error: "Facilitator location not set" });
+//     }
+
+//     // Query trainees collection with location filter
+//     const traineesRef = collection(db, "trainees");
+//     const locationQuery = query(
+//       traineesRef,
+//       where("location", "==", facilitatorLocation)
+//     );
+//     const snapshot = await getDocs(locationQuery);
+
+//     const trainees = snapshot.docs.map((doc) => ({
+//       id: doc.id,
+//       ...doc.data(),
+//     }));
+
+//     // Convert any timestamp fields to ISO strings
+//     const formattedTrainees = trainees.map((trainee) => {
+//       const formatted = { ...trainee };
+//       if (formatted.createdAt) {
+//         formatted.createdAt = formatted.createdAt.toDate().toISOString();
+//       }
+//       if (formatted.updatedAt) {
+//         formatted.updatedAt = formatted.updatedAt.toDate().toISOString();
+//       }
+//       return formatted;
+//     });
+
+//     res.status(200).json(formattedTrainees);
+//   } catch (error) {
+//     console.error("Error fetching trainees:", error);
+//     res.status(500).json({
+//       error: "Failed to fetch trainees",
+//       details: error.message,
+//     });
+//   }
+// };
+
 export const get_Users_By_Location = async (req, res) => {
   try {
     // Check if user exists and has uid
@@ -63,15 +125,26 @@ export const get_Users_By_Location = async (req, res) => {
       return res.status(400).json({ error: "Facilitator location not set" });
     }
 
+    // Pagination parameters
+    const pageSize = parseInt(req.query.limit) || 10;
+    const pageNum = parseInt(req.query.page) || 1;
+    
     // Query trainees collection with location filter
     const traineesRef = collection(db, "trainees");
     const locationQuery = query(
       traineesRef,
       where("location", "==", facilitatorLocation)
     );
+    
+    // Get all matching documents
     const snapshot = await getDocs(locationQuery);
-
-    const trainees = snapshot.docs.map((doc) => ({
+    
+    // Calculate pagination manually
+    const startIndex = (pageNum - 1) * pageSize;
+    const totalTrainees = snapshot.docs.length;
+    const paginatedDocs = snapshot.docs.slice(startIndex, startIndex + pageSize);
+    
+    const trainees = paginatedDocs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     }));
@@ -79,16 +152,25 @@ export const get_Users_By_Location = async (req, res) => {
     // Convert any timestamp fields to ISO strings
     const formattedTrainees = trainees.map((trainee) => {
       const formatted = { ...trainee };
-      if (formatted.createdAt) {
-        formatted.createdAt = formatted.createdAt.toDate().toISOString();
-      }
-      if (formatted.updatedAt) {
-        formatted.updatedAt = formatted.updatedAt.toDate().toISOString();
-      }
+      // if (formatted.createdAt) {
+      //   formatted.createdAt = formatted.createdAt.toDate().toISOString();
+      // }
+      // if (formatted.updatedAt) {
+      //   formatted.updatedAt = formatted.updatedAt.toDate().toISOString();
+      // }
       return formatted;
     });
 
-    res.status(200).json(formattedTrainees);
+    res.status(200).json({
+      trainees: formattedTrainees,
+      pagination: {
+        totalTrainees,
+        totalPages: Math.ceil(totalTrainees / pageSize),
+        currentPage: pageNum,
+        pageSize,
+        hasNextPage: startIndex + pageSize < totalTrainees
+      }
+    });
   } catch (error) {
     console.error("Error fetching trainees:", error);
     res.status(500).json({
@@ -130,7 +212,14 @@ export const create_user = async (req, res) => {
       notifications,
     } = req.body;
 
-    if (!fullName || !surname || !phoneNumber || !idNumber || !email || !location) {
+    if (
+      !fullName ||
+      !surname ||
+      !phoneNumber ||
+      !idNumber ||
+      !email ||
+      !location
+    ) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
@@ -295,5 +384,108 @@ export const deleted_Users = async (req, res) => {
       error: "Failed to fetch deleted trainees",
       details: error.message,
     });
+  }
+};
+
+export const traineeManagementOverview = async (req, res) => {
+  try {
+    const today = new Date().toISOString().split("T")[0];
+
+    const location = req.location;
+
+    const mockReq = {
+      query: {
+        startDate: "2024-06-11",
+        endDate: today,
+      },
+    };
+
+    let responseData;
+
+    const mockRes = {
+      json: (data) => {
+        responseData = data;
+      },
+      status: (code) => ({
+        json: (data) => {
+          console.log(`Status ${code}:`);
+          responseData = data;
+        },
+      }),
+    };
+
+    await getAllTraineesProgramStats(mockReq, mockRes);
+
+    if (!responseData) {
+      throw new Error("No data returned from getAllTraineesProgramStats");
+    }
+
+    const calculateWorkingDays = (startDate, endDate) => {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      let workingDays = 0;
+
+      const current = new Date(start);
+      while (current <= end) {
+        const dayOfWeek = current.getDay();
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+          workingDays++;
+        }
+        current.setDate(current.getDate() + 1);
+      }
+
+      return workingDays;
+    };
+
+    const categorizeAttendance = (percentage) => {
+      if (percentage < 30) return "Poor";
+      if (percentage < 60) return "Below Average";
+      if (percentage < 80) return "Average";
+      if (percentage < 90) return "Good";
+      return "Excellent";
+    };
+
+    const startDate = responseData.startDate;
+
+    const sixMonthsLater = new Date(startDate);
+    sixMonthsLater.setMonth(sixMonthsLater.getMonth() + 6);
+    const sixMonthEndDate = sixMonthsLater.toISOString().split("T")[0];
+
+    // Calculate total working days
+    const totalWorkingDays = calculateWorkingDays(startDate, sixMonthEndDate);
+
+    let filteredProgramStats = responseData.programStats;
+
+    // Apply location filter directly to the response data if location is specified
+    if (location) {
+      filteredProgramStats = responseData.programStats.filter(
+        (trainee) => trainee.traineeLocation === location
+      );
+    }
+
+    // Add attendance percentage and level to each trainee
+    const enhancedStats = {
+      ...responseData,
+      totalWorkingDays,
+      ...(location && { filteredByLocation: location }),
+      programStats: filteredProgramStats.map((trainee) => {
+        const attendancePercentage =
+          (trainee.attendedDays / totalWorkingDays) * 100;
+        return {
+          ...trainee,
+          attendancePercentage: attendancePercentage.toFixed(2) + "%",
+          attendanceLevel: categorizeAttendance(attendancePercentage),
+        };
+      }),
+    };
+
+    // console.log("Enhanced Stats:", enhancedStats);
+    // return enhancedStats;
+    res.status(200).json(enhancedStats);
+  } catch (error) {
+    console.error("Error calculating attendance:", error.message);
+    return res
+      .status(500)
+      .json({ error: "Error calculating attendance", message: error.message });
   }
 };
