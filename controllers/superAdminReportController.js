@@ -89,14 +89,24 @@ import {
       const endIndex = startIndex + limitNumber;
       const paginatedReports = reports.slice(startIndex, endIndex);
   
+      // Calculate present count
+      const presentCount = reports.filter((r) => r.checkInTime).length;
+      const totalTrainees = reports.length;
+      
+      // Calculate attendance percentage
+      const attendancePercentage = totalTrainees > 0 
+        ? ((presentCount / totalTrainees) * 100).toFixed(2) 
+        : "0.00";
+  
       // Summary statistics
       const summary = {
         date: reportDate,
         isWorkingDay: workingDay,
-        totalTrainees: reports.length,
-        presentCount: reports.filter((r) => r.checkInTime).length,
+        totalTrainees: totalTrainees,
+        presentCount: presentCount,
         absentCount: reports.filter((r) => !r.checkInTime).length,
         lateCount: reports.filter((r) => r.status === "Late").length,
+        attendancePercentage: `${attendancePercentage}%`,
         totalHoursWorked: reports
           .reduce((sum, r) => sum + (r.totalHoursWorked || 0), 0)
           .toFixed(2),
