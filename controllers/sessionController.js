@@ -578,6 +578,7 @@ export const autoCheckOutTrainees = async () => {
           [`${today}.checkOutTime`]: AUTO_CHECKOUT_TIME,
           [`${today}.totalHoursWorked`]: parseFloat(totalHours),
           [`${today}.totalLunchMinutes`]: totalLunchMinutes,
+          [`${today}.status`]: "Auto Checked Out",
         });
 
         await set(ref(rtdb, `liveTracking/${traineeId}`), null);
