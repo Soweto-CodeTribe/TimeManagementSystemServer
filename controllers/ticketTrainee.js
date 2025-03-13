@@ -6,6 +6,7 @@ import {
   getDocs, 
   addDoc, 
   updateDoc, 
+  deleteDoc,
   query, 
   where, 
   orderBy
@@ -162,5 +163,36 @@ export const cancelMyTicket = async (req, res) => {
         });
     } catch (error) {
         res.status(400).json({ error: error.message });
+    }
+};
+
+
+export const deleteMyTicket = async (req, res) => {
+    try {
+        const ticketRef = doc(db, 'tickets', req.params.id);
+        const ticketDoc = await getDoc(ticketRef);
+        
+        if (!ticketDoc.exists()) {
+            return res.status(404).json({ error: 'Ticket not found' });
+        }
+        
+        const ticket = ticketDoc.data();
+        
+        // Check ownership - trainee can only delete their own tickets
+        if (ticket.submittedBy !== req.user.uid) {
+            return res.status(403).json({ 
+                error: 'Unauthorized: This is not your ticket' 
+            });
+        }
+        
+        // Delete the ticket
+        await deleteDoc(ticketRef);
+        
+        res.json({
+            message: 'Ticket has been deleted successfully by trainee',
+            ticketId: req.params.id
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
     }
 };
