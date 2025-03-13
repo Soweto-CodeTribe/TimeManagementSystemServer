@@ -940,24 +940,44 @@ export const getDailyReport = async (req, res) => {
 
 export const getWeeklyStats = async (req, res) => {
   try {
-    const { traineeId, weekStart, weekNumber, year } = req.query;
+    const { traineeId, date, weekStart, weekNumber, year } = req.query;
 
     if (!traineeId) {
       return res.status(400).json({ error: "Trainee ID is required" });
     }
 
-    // Define date range for the specified week
     let startDate, endDate;
+    let singleDayMode = false;
 
-    if (weekStart) {
-      // If a specific start date is provided, use it and calculate the end date (6 days later)
+    // If a specific date is provided, get data for just that day
+    if (date) {
+      const targetDate = new Date(date);
+      if (isNaN(targetDate.getTime())) {
+        return res.status(400).json({ error: "Invalid date format" });
+      }
+
+      // If we're requesting a single day
+      singleDayMode = true;
+      
+      // Fix: Create date strings directly to avoid timezone issues
+      const dateStr = date; // Use the exact string provided by the user
+      startDate = new Date(dateStr);
+      endDate = new Date(dateStr);
+      
+      // No need to adjust hours for database query since we're using the date string
+    }
+    // Rest of the code for weekStart, weekNumber, etc. remains the same
+    else if (weekStart) {
       startDate = new Date(weekStart);
+      if (isNaN(startDate.getTime())) {
+        return res.status(400).json({ error: "Invalid weekStart format" });
+      }
+
       endDate = new Date(startDate);
-      endDate.setDate(endDate.getDate() + 6);
-    } else if (weekNumber && year) {
-      // Calculate the start date based on week number and year
-      // Week 1 is the first week with a Thursday in January
-      // https://en.wikipedia.org/wiki/ISO_week_date
+      endDate.setDate(startDate.getDate() + 6);
+    }
+    else if (weekNumber && year) {
+      // Existing code for week number calculation
       const parsedYear = parseInt(year);
       const parsedWeek = parseInt(weekNumber);
 
@@ -976,8 +996,9 @@ export const getWeeklyStats = async (req, res) => {
       // Calculate the Sunday of the requested week
       endDate = new Date(startDate);
       endDate.setDate(startDate.getDate() + 6);
-    } else {
-      // Default to current week (Monday to Sunday)
+    }
+    else {
+      // Default to the current week
       const currentDate = new Date();
       startDate = new Date(currentDate);
       const day = startDate.getDay();
@@ -988,8 +1009,8 @@ export const getWeeklyStats = async (req, res) => {
       endDate.setDate(startDate.getDate() + 6);
     }
 
-    const startDateStr = startDate.toISOString().split("T")[0];
-    const endDateStr = endDate.toISOString().split("T")[0];
+    const startDateStr = singleDayMode ? date : startDate.toISOString().split("T")[0];
+    const endDateStr = singleDayMode ? date : endDate.toISOString().split("T")[0];
 
     // Get trainee info
     const traineeRef = doc(db, `trainees/${traineeId}`);
@@ -1012,10 +1033,10 @@ export const getWeeklyStats = async (req, res) => {
     }
 
     const reportData = reportDoc.data();
-    const weeklyData = [];
+    const collectedData = [];
 
-    // Calculate all working days in the week
-    const workingDaysInWeek = [];
+    // Calculate working days in the range
+    const workingDaysInRange = [];
     let currentDay = new Date(startDate);
 
     while (currentDay <= endDate) {
@@ -1023,30 +1044,30 @@ export const getWeeklyStats = async (req, res) => {
       const isWorkDay = await isWorkingDay(dateStr);
 
       if (isWorkDay) {
-        workingDaysInWeek.push(dateStr);
+        workingDaysInRange.push(dateStr);
       }
 
       currentDay.setDate(currentDay.getDate() + 1);
     }
 
     // Filter and collect reports within date range
-    for (const [date, data] of Object.entries(reportData)) {
-      if (date >= startDateStr && date <= endDateStr) {
-        weeklyData.push({
-          date,
+    for (const [reportDate, data] of Object.entries(reportData)) {
+      if (reportDate >= startDateStr && reportDate <= endDateStr) {
+        collectedData.push({
+          date: reportDate,
           ...data,
         });
       }
     }
 
     // Count attended days (days with check in)
-    const attendedDays = weeklyData.filter(
+    const attendedDays = collectedData.filter(
       (day) => day.checkInTime && day.isWorkingDay
     );
 
     // Calculate absent days (working days without attendance)
-    const absentDays = workingDaysInWeek.filter(
-      (date) => !weeklyData.some((day) => day.date === date && day.checkInTime)
+    const absentDays = workingDaysInRange.filter(
+      (dateStr) => !collectedData.some((day) => day.date === dateStr && day.checkInTime)
     );
 
     // Calculate total working hours
@@ -1066,8 +1087,8 @@ export const getWeeklyStats = async (req, res) => {
     const lateDays = attendedDays.filter((day) => day.status === "Late").length;
 
     // Daily breakdown
-    const dailyBreakdown = workingDaysInWeek.map((dateStr) => {
-      const dayData = weeklyData.find((day) => day.date === dateStr);
+    const dailyBreakdown = workingDaysInRange.map((dateStr) => {
+      const dayData = collectedData.find((day) => day.date === dateStr);
       const dayOfWeek = new Date(dateStr).toLocaleString("default", {
         weekday: "long",
       });
@@ -1097,46 +1118,85 @@ export const getWeeklyStats = async (req, res) => {
       }
     });
 
-    // Get week number for the result
-    const weekNum = getWeekNumber(startDate);
+    // Fix attendance rate calculation for single day mode
+    let attendanceRate;
+    if (singleDayMode) {
+      // For a single day, attendance is either 100% or 0%
+      const isAttended = attendedDays.some(day => day.date === startDateStr);
+      attendanceRate = isAttended ? "100.00%" : "0.00%";
+    } else {
+      // Weekly attendance rate calculation
+      attendanceRate = (
+        (attendedDays.length / Math.max(1, workingDaysInRange.length)) *
+        100
+      ).toFixed(2) + "%";
+    }
 
-    // Weekly statistics summary
-    const weeklyStats = {
+    // Get week number for the result (or day info for single day mode)
+    let responseTitle, timeframe;
+    if (singleDayMode) {
+      responseTitle = "Daily Stats";
+      timeframe = startDateStr;
+    } else {
+      responseTitle = "Weekly Stats";
+      timeframe = `Week ${getWeekNumber(startDate)}`;
+    }
+
+    // Statistics summary
+    const stats = {
       traineeId,
       traineeName,
-      weekNumber: weekNum,
-      year: startDate.getFullYear(),
+      timeframe,
       startDate: startDateStr,
       endDate: endDateStr,
-      workingDaysInWeek: workingDaysInWeek.length,
-      attendedDays: attendedDays.length,
-      absentDays: absentDays.length,
-      lateDays,
-      attendanceRate:
-        (
-          (attendedDays.length / Math.max(1, workingDaysInWeek.length)) *
-          100
-        ).toFixed(2) + "%",
-      totalWorkingHours: totalWorkingHours.toFixed(2),
+      workingDaysInPeriod: singleDayMode ? (workingDaysInRange.includes(startDateStr) ? 1 : 0) : workingDaysInRange.length,
+      attendedDays: singleDayMode ? (attendedDays.some(day => day.date === startDateStr) ? 1 : 0) : attendedDays.length,
+      absentDays: singleDayMode ? (absentDays.includes(startDateStr) ? 1 : 0) : absentDays.length,
+      lateDays: singleDayMode ? (attendedDays.some(day => day.date === startDateStr && day.status === "Late") ? 1 : 0) : lateDays,
+      attendanceRate,
+      totalWorkingHours: singleDayMode 
+        ? (attendedDays.find(day => day.date === startDateStr)?.totalHoursWorked || "0.00") 
+        : totalWorkingHours.toFixed(2),
       averageDailyHours: (
         totalWorkingHours / Math.max(1, attendedDays.length)
       ).toFixed(2),
-      totalLunchMinutes,
-      totalLunchHours,
-      averageLunchMinutes: (
-        totalLunchMinutes / Math.max(1, attendedDays.length)
-      ).toFixed(0),
+      totalLunchMinutes: singleDayMode 
+        ? (attendedDays.find(day => day.date === startDateStr)?.totalLunchMinutes || 0) 
+        : totalLunchMinutes,
+      totalLunchHours: singleDayMode
+        ? ((attendedDays.find(day => day.date === startDateStr)?.totalLunchMinutes || 0) / 60).toFixed(2)
+        : totalLunchHours,
+      averageLunchMinutes: singleDayMode
+        ? (attendedDays.find(day => day.date === startDateStr)?.totalLunchMinutes || 0)
+        : (totalLunchMinutes / Math.max(1, attendedDays.length)).toFixed(0),
     };
 
+    // If it's a single day, include the year and week info for context
+    if (singleDayMode) {
+      const weekNum = getWeekNumber(startDate);
+      stats.year = startDate.getFullYear();
+      stats.weekNumber = weekNum;
+      stats.dayOfWeek = startDate.toLocaleString("default", { weekday: "long" });
+    } else {
+      stats.year = startDate.getFullYear();
+      stats.weekNumber = getWeekNumber(startDate);
+    }
+
     res.status(200).json({
-      weeklyStats,
-      dailyBreakdown,
-      workingDays: workingDaysInWeek,
-      absentDays,
+      [singleDayMode ? "dailyStats" : "weeklyStats"]: stats,
+      dailyBreakdown: singleDayMode 
+        ? dailyBreakdown.filter(day => day.date === startDateStr) 
+        : dailyBreakdown,
+      workingDays: singleDayMode 
+        ? workingDaysInRange.filter(day => day === startDateStr) 
+        : workingDaysInRange,
+      absentDays: singleDayMode 
+        ? absentDays.filter(day => day === startDateStr) 
+        : absentDays,
     });
   } catch (error) {
-    console.error("Weekly stats error:", error);
-    res.status(500).json({ error: "Failed to retrieve weekly statistics" });
+    console.error("Stats error:", error);
+    res.status(500).json({ error: "Failed to retrieve statistics" });
   }
 };
 
