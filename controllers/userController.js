@@ -30,13 +30,65 @@ const generatePassword = (length = 12) => {
 //GET METHOD Trainee
 export const get_Users = async (req, res) => {
   try {
+    const { page = 1, limit = 10, search } = req.query;
+    const pageNumber = parseInt(page, 10);
+    const limitNumber = parseInt(limit, 10);
+    const location = req.location;
+
+    if (isNaN(pageNumber) || pageNumber < 1) {
+      return res.status(400).json({ error: "Invalid page number" });
+    }
+    if (isNaN(limitNumber) || limitNumber < 1) {
+      return res.status(400).json({ error: "Invalid limit number" });
+    }
+
     const traineesRef = collection(db, "trainees");
     const snapshot = await getDocs(traineesRef);
-    const trainees = snapshot.docs.map((doc) => ({
+    let trainees = snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     }));
-    res.status(200).json(trainees);
+
+    if (location) {
+      trainees = trainees.filter(trainee => 
+        trainee.location === location
+      );
+    }
+
+    if (search) {
+      const searchLower = search.toLowerCase();
+      trainees = trainees.filter(trainee => 
+        (trainee.name && trainee.name.toLowerCase().includes(searchLower)) ||
+        (trainee.fullName && trainee.fullName.toLowerCase().includes(searchLower))
+      );
+    }
+
+    const totalTrainees = trainees.length;
+
+    const startIndex = (pageNumber - 1) * limitNumber;
+    const endIndex = startIndex + limitNumber;
+    const paginatedTrainees = trainees.slice(startIndex, endIndex);
+
+    const response = {
+      trainees: paginatedTrainees,
+      pagination: {
+        totalTrainees,
+        currentPage: pageNumber,
+        totalPages: Math.ceil(totalTrainees / limitNumber),
+        limit: limitNumber
+      },
+      filters: {}
+    };
+
+    if (location) {
+      response.filters.location = location;
+    }
+    
+    if (search) {
+      response.filters.search = search;
+    }
+
+    res.status(200).json(response);
   } catch (error) {
     console.error("Error fetching trainees:", error);
     res
