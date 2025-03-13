@@ -6,6 +6,7 @@ import {
     getDocs, 
     addDoc, 
     updateDoc, 
+    deleteDoc,
     query, 
     where, 
     orderBy
@@ -146,5 +147,48 @@ export const updateTicket = async (req, res) => {
         res.json({ id: updatedTicket.id, ...updatedTicket.data() });
         } catch (error) {
             res.status(400).json({ error: error.message });
+        }
+    };
+
+
+    export const deleteTicket = async (req, res) => {
+        try {
+            // Check if user is a facilitator or super admin
+            let userRole = '';
+            let useName = '';
+            
+
+            const facilitatorRef = doc(db, 'facilitators', req.user.uid);
+            const facilitatorDoc = await getDoc(facilitatorRef);
+            const user = facilitatorDoc.data();
+            
+            if (facilitatorDoc.exists()) {
+                userRole = user.role ;
+                useName = user.name || user.fullName;
+            } 
+            
+            
+            if (!facilitatorDoc.exists()) {
+                return res.status(403).json({ 
+                    error: 'Unauthorized: Only facilitators and super admins can delete tickets' 
+                });
+            }
+            
+            const ticketRef = doc(db, 'tickets', req.params.id);
+            const ticketDoc = await getDoc(ticketRef);
+            
+            if (!ticketDoc.exists()) {
+                return res.status(404).json({ error: 'Ticket not found' });
+            }
+            
+            // Delete the ticket
+            await deleteDoc(ticketRef);
+            
+            res.json({
+                message: `Ticket has been deleted successfully by ${userRole}, ${useName} `,
+                ticketId: req.params.id
+            });
+        } catch (error) {
+            res.status(500).json({ error: error.message });
         }
     };
