@@ -522,6 +522,8 @@ export const getTraineesByLocation = async (req, res) => {
 
 export const getLiveTrainees = async (req, res) => {
   try {
+    const location = req.location;
+    
     const traineesRef = ref(rtdb, "liveTracking");
     const snapshot = await get(traineesRef);
     const traineesData = snapshot.val();
@@ -530,7 +532,27 @@ export const getLiveTrainees = async (req, res) => {
       return res.status(404).json({ error: "No trainees found" });
     }
 
-    res.status(200).json(traineesData);
+    if (location) {
+      const filteredTrainees = {};
+      
+      Object.keys(traineesData).forEach(key => {
+        const trainee = traineesData[key];
+        if (trainee.location === location) {
+          filteredTrainees[key] = trainee;
+        }
+      });
+      
+      return res.status(200).json({
+        trainees: filteredTrainees,
+        totalTrainees: Object.keys(filteredTrainees).length,
+        filteredByLocation: location
+      });
+    }
+
+    res.status(200).json({
+      trainees: traineesData,
+      totalTrainees: Object.keys(traineesData).length
+    });
   } catch (error) {
     console.error("Error fetching trainees by location:", error);
     res.status(500).json({ error: "Failed to fetch trainees by location" });
