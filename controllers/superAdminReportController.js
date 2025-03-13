@@ -12,7 +12,7 @@ import {
   // Get all trainees' daily reports
   export const getAllTraineesDailyReport = async (req, res) => {
     try {
-      const { date, page = 1, limit = 5 } = req.query;
+      const { date, page = 1, limit = 5, search } = req.query;
       const reportDate = date || new Date().toISOString().split("T")[0];
       const pageNumber = parseInt(page, 10);
       const limitNumber = parseInt(limit, 10);
@@ -28,8 +28,17 @@ import {
       // Check if it's a working day
       const workingDay = await isWorkingDay(reportDate);
   
-      // Get all trainees
-      const traineesQuery = query(collection(db, "trainees"));
+      // Get all trainees with optional location filter
+      let traineesQuery = query(collection(db, "trainees"));
+      
+      // Add location filter if req.location is defined
+      if (req.location) {
+        traineesQuery = query(
+          collection(db, "trainees"),
+          where("location", "==", req.location)
+        );
+      }
+      
       const traineesSnapshot = await getDocs(traineesQuery);
   
       const reports = [];
@@ -37,6 +46,12 @@ import {
   
       traineesSnapshot.forEach((traineeDoc) => {
         const trainee = { id: traineeDoc.id, ...traineeDoc.data() };
+        
+        if (search && 
+            !(trainee.name?.toLowerCase().includes(search.toLowerCase()) || 
+              trainee.fullName?.toLowerCase().includes(search.toLowerCase()))) {
+          return;
+        }
   
         // For each trainee, get their report for the specified date
         const checkPromise = (async () => {
@@ -46,16 +61,17 @@ import {
           if (reportDoc.exists() && reportDoc.data()?.[reportDate]) {
             reports.push({
               traineeId: trainee.id,
-              name: trainee.name,
+              name: trainee.name || trainee.fullName,
               ...reportDoc.data()[reportDate],
             });
           } else if (workingDay) {
             // If it's a working day but no report, consider absent
             reports.push({
               traineeId: trainee.id,
-              name: trainee.name,
+              name: trainee.name || trainee.fullName,
               date: reportDate,
               status: "Absent",
+              location: trainee.location,
               isWorkingDay: true,
               totalHoursWorked: 0,
               totalLunchMinutes: 0,
@@ -90,11 +106,20 @@ import {
         ).toFixed(2),
       };
   
+      if (req.location) {
+        summary.location = req.location;
+      }
+  
+      if (search) {
+        summary.search = search;
+      }
+  
       res.status(200).json({
         summary,
         reports: paginatedReports,
         currentPage: pageNumber,
         totalPages: Math.ceil(reports.length / limitNumber),
+        totalResults: reports.length,
       });
     } catch (error) {
       console.error("Daily report error:", error);

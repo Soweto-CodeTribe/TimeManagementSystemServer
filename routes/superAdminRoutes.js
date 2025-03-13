@@ -11,7 +11,7 @@ import {  isSuperAdmin } from "../middleware/auth.js";
 const router = express.Router();
 
 // Get all trainees' daily report
-router.get("/daily", verifyToken, isSuperAdmin, getAllTraineesDailyReport);
+router.get("/daily", verifyToken, getAllTraineesDailyReport);
 
 // Get all trainees' weekly statistics
 router.get("/weekly",verifyToken,isSuperAdmin, getAllTraineesWeeklyStats);
