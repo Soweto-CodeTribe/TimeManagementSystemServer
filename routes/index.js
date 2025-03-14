@@ -8,6 +8,7 @@ import {
   disable2FA,
   forgotPassword,
   logout,
+  resendVerificationCode
 } from "../controllers/authController.js";
 import { verifyToken } from "../utilities/index.js";
 
@@ -20,7 +21,7 @@ router.post("/enable-2fa", verifyToken, enable2FA);
 router.post("/verify-2fa", verify2FA);
 router.post("/disable-2fa", verifyToken, disable2FA);
 router.post("/forgot-password", forgotPassword);
-// router.post("/resend-2fa", resendVerificationCode);
+router.post("/resend-2fa", resendVerificationCode); 
 router.post("/logout", logout);
 
 export default router;
