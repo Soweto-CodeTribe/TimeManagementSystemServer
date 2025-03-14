@@ -30,13 +30,65 @@ const generatePassword = (length = 12) => {
 //GET METHOD Trainee
 export const get_Users = async (req, res) => {
   try {
+    const { page = 1, limit = 10, search } = req.query;
+    const pageNumber = parseInt(page, 10);
+    const limitNumber = parseInt(limit, 10);
+    const location = req.location;
+
+    if (isNaN(pageNumber) || pageNumber < 1) {
+      return res.status(400).json({ error: "Invalid page number" });
+    }
+    if (isNaN(limitNumber) || limitNumber < 1) {
+      return res.status(400).json({ error: "Invalid limit number" });
+    }
+
     const traineesRef = collection(db, "trainees");
     const snapshot = await getDocs(traineesRef);
-    const trainees = snapshot.docs.map((doc) => ({
+    let trainees = snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     }));
-    res.status(200).json(trainees);
+
+    if (location) {
+      trainees = trainees.filter(trainee => 
+        trainee.location === location
+      );
+    }
+
+    if (search) {
+      const searchLower = search.toLowerCase();
+      trainees = trainees.filter(trainee => 
+        (trainee.name && trainee.name.toLowerCase().includes(searchLower)) ||
+        (trainee.fullName && trainee.fullName.toLowerCase().includes(searchLower))
+      );
+    }
+
+    const totalTrainees = trainees.length;
+
+    const startIndex = (pageNumber - 1) * limitNumber;
+    const endIndex = startIndex + limitNumber;
+    const paginatedTrainees = trainees.slice(startIndex, endIndex);
+
+    const response = {
+      trainees: paginatedTrainees,
+      pagination: {
+        totalTrainees,
+        currentPage: pageNumber,
+        totalPages: Math.ceil(totalTrainees / limitNumber),
+        limit: limitNumber
+      },
+      filters: {}
+    };
+
+    if (location) {
+      response.filters.location = location;
+    }
+    
+    if (search) {
+      response.filters.search = search;
+    }
+
+    res.status(200).json(response);
   } catch (error) {
     console.error("Error fetching trainees:", error);
     res
@@ -391,6 +443,16 @@ export const deleted_Users = async (req, res) => {
 export const traineeManagementOverview = async (req, res) => {
   try {
     const today = new Date().toISOString().split("T")[0];
+    const { page = 1, limit = 10, search } = req.query;
+    const pageNumber = parseInt(page, 10);
+    const limitNumber = parseInt(limit, 10);
+
+    if (isNaN(pageNumber) || pageNumber < 1) {
+      return res.status(400).json({ error: "Invalid page number" });
+    }
+    if (isNaN(limitNumber) || limitNumber < 1) {
+      return res.status(400).json({ error: "Invalid limit number" });
+    }
 
     const location = req.location;
 
@@ -464,25 +526,50 @@ export const traineeManagementOverview = async (req, res) => {
       );
     }
 
+    if (search) {
+      const searchLower = search.toLowerCase();
+      filteredProgramStats = filteredProgramStats.filter((trainee) => 
+        (trainee.traineeName && trainee.traineeName.toLowerCase().includes(searchLower)) ||
+        (trainee.fullName && trainee.fullName.toLowerCase().includes(searchLower))
+      );
+    }
+
     // Add attendance percentage and level to each trainee
-    const enhancedStats = {
+    const enhancedStats = filteredProgramStats.map((trainee) => {
+      const attendancePercentage =
+        (trainee.attendedDays / totalWorkingDays) * 100;
+      return {
+        ...trainee,
+        attendancePercentage: attendancePercentage.toFixed(2) + "%",
+        attendanceLevel: categorizeAttendance(attendancePercentage),
+      };
+    });
+
+    // Apply pagination
+    const startIndex = (pageNumber - 1) * limitNumber;
+    const endIndex = startIndex + limitNumber;
+    const paginatedStats = enhancedStats.slice(startIndex, endIndex);
+
+    // Prepare response object with pagination info
+    const result = {
       ...responseData,
       totalWorkingDays,
-      ...(location && { filteredByLocation: location }),
-      programStats: filteredProgramStats.map((trainee) => {
-        const attendancePercentage =
-          (trainee.attendedDays / totalWorkingDays) * 100;
-        return {
-          ...trainee,
-          attendancePercentage: attendancePercentage.toFixed(2) + "%",
-          attendanceLevel: categorizeAttendance(attendancePercentage),
-        };
-      }),
+      totalTrainees: enhancedStats.length,
+      currentPage: pageNumber,
+      totalPages: Math.ceil(enhancedStats.length / limitNumber),
+      programStats: paginatedStats,
     };
 
-    // console.log("Enhanced Stats:", enhancedStats);
-    // return enhancedStats;
-    res.status(200).json(enhancedStats);
+    // Add filter information if applied
+    if (location) {
+      result.filteredByLocation = location;
+    }
+    
+    if (search) {
+      result.searchQuery = search;
+    }
+
+    res.status(200).json(result);
   } catch (error) {
     console.error("Error calculating attendance:", error.message);
     return res

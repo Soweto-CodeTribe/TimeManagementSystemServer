@@ -99,237 +99,110 @@ import {
   };
   
   // Get facilitator's trainees weekly statistics
-  // Get facilitator's trainees weekly statistics
-// Get facilitator's trainees weekly statistics
-export const getFacilitatorTraineesWeeklyStats = async (req, res) => {
-  try {
-    const { weekStart, weekNumber, year } = req.query;
-
-    // Define date range for the specified week
-    let startDate, endDate;
-
-    if (weekStart) {
-      startDate = new Date(weekStart);
-      endDate = new Date(startDate);
-      endDate.setDate(endDate.getDate() + 6);
-    } else if (weekNumber && year) {
-      const parsedYear = parseInt(year);
-      const parsedWeek = parseInt(weekNumber);
-
-      const jan4th = new Date(parsedYear, 0, 4);
-      const firstMonday = new Date(jan4th);
-      const dayOfWeek = jan4th.getDay();
-      const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-      firstMonday.setDate(jan4th.getDate() + diff);
-
-      startDate = new Date(firstMonday);
-      startDate.setDate(firstMonday.getDate() + (parsedWeek - 1) * 7);
-
-      endDate = new Date(startDate);
-      endDate.setDate(startDate.getDate() + 6);
-    } else {
-      const currentDate = new Date();
-      startDate = new Date(currentDate);
-      const day = startDate.getDay();
-      const diff = day === 0 ? -6 : 1 - day;
-      startDate.setDate(startDate.getDate() + diff);
-
-      endDate = new Date(startDate);
-      endDate.setDate(startDate.getDate() + 6);
-    }
-
-    const startDateStr = startDate.toISOString().split("T")[0];
-    const endDateStr = endDate.toISOString().split("T")[0];
-
-    // Get filtered trainees from middleware
-    const trainees = req.trainees || [];
-    const totalTraineeCount = trainees.length;
-
-    // Array of day names
-    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-
-    // Initialize daily attendance tracking
-    const dailyAttendance = {};
-    // Generate dates for the entire week
-    const weekDates = [];
-    const currentDate = new Date(startDate);
-    
-    while (currentDate <= endDate) {
-      const dateStr = currentDate.toISOString().split("T")[0];
-      const dayOfWeek = currentDate.getDay();
-      weekDates.push(dateStr);
-      dailyAttendance[dateStr] = {
-        date: dateStr,
-        dayOfWeek: dayNames[dayOfWeek],
-        dayNumber: dayOfWeek,
-        isWorkingDay: false, // Will be updated later
-        totalTrainees: totalTraineeCount,
-        presentCount: 0,
-        absentCount: 0,
-        lateCount: 0,
-        attendanceRate: "0.00"
-      };
-      currentDate.setDate(currentDate.getDate() + 1);
-    }
-
-    const weeklyStats = [];
-    const promises = [];
-
-    // First check which days are working days
-    const workingDayPromises = weekDates.map(async (date) => {
-      const isWorkDay = await isWorkingDay(date);
-      dailyAttendance[date].isWorkingDay = isWorkDay;
-      return { date, isWorkingDay: isWorkDay };
-    });
-    
-    await Promise.all(workingDayPromises);
-
-    trainees.forEach((trainee) => {
-      const checkPromise = (async () => {
-        const reportRef = doc(db, `reports/${trainee.id}`);
-        const reportDoc = await getDoc(reportRef);
-
-        if (reportDoc.exists()) {
-          const reportData = reportDoc.data();
-          const weeklyData = [];
-
-          // Filter and collect reports within date range
-          for (const [date, data] of Object.entries(reportData)) {
-            if (date >= startDateStr && date <= endDateStr) {
-              weeklyData.push({
-                date,
-                ...data,
-              });
-              
-              // Update daily attendance data
-              if (data.isWorkingDay) {
-                if (data.checkInTime) {
-                  dailyAttendance[date].presentCount++;
-                  if (data.status === "Late") {
-                    dailyAttendance[date].lateCount++;
-                  }
-                } else {
-                  dailyAttendance[date].absentCount++;
-                }
+  export const getFacilitatorTraineesWeeklyStats = async (req, res) => {
+    try {
+      const { weekStart, weekNumber, year } = req.query;
+  
+      // Define date range for the specified week
+      let startDate, endDate;
+  
+      if (weekStart) {
+        startDate = new Date(weekStart);
+        endDate = new Date(startDate);
+        endDate.setDate(endDate.getDate() + 6);
+      } else if (weekNumber && year) {
+        const parsedYear = parseInt(year);
+        const parsedWeek = parseInt(weekNumber);
+  
+        const jan4th = new Date(parsedYear, 0, 4);
+        const firstMonday = new Date(jan4th);
+        const dayOfWeek = jan4th.getDay();
+        const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+        firstMonday.setDate(jan4th.getDate() + diff);
+  
+        startDate = new Date(firstMonday);
+        startDate.setDate(firstMonday.getDate() + (parsedWeek - 1) * 7);
+  
+        endDate = new Date(startDate);
+        endDate.setDate(startDate.getDate() + 6);
+      } else {
+        const currentDate = new Date();
+        startDate = new Date(currentDate);
+        const day = startDate.getDay();
+        const diff = day === 0 ? -6 : 1 - day;
+        startDate.setDate(startDate.getDate() + diff);
+  
+        endDate = new Date(startDate);
+        endDate.setDate(startDate.getDate() + 6);
+      }
+  
+      const startDateStr = startDate.toISOString().split("T")[0];
+      const endDateStr = endDate.toISOString().split("T")[0];
+  
+      // Get filtered trainees from middleware
+      const trainees = req.trainees || [];
+  
+      const weeklyStats = [];
+      const promises = [];
+  
+      trainees.forEach((trainee) => {
+        const checkPromise = (async () => {
+          const reportRef = doc(db, `reports/${trainee.id}`);
+          const reportDoc = await getDoc(reportRef);
+  
+          if (reportDoc.exists()) {
+            const reportData = reportDoc.data();
+            const weeklyData = [];
+  
+            // Filter and collect reports within date range
+            for (const [date, data] of Object.entries(reportData)) {
+              if (date >= startDateStr && date <= endDateStr) {
+                weeklyData.push({
+                  date,
+                  ...data,
+                });
               }
             }
+  
+            // Calculate summary statistics
+            const attendedDays = weeklyData.filter(
+              (day) => day.checkInTime && day.isWorkingDay
+            );
+            const totalWorkingHours = attendedDays.reduce(
+              (sum, day) => sum + (parseFloat(day.totalHoursWorked) || 0),
+              0
+            );
+            const totalLunchMinutes = attendedDays.reduce(
+              (sum, day) => sum + (parseInt(day.totalLunchMinutes) || 0),
+              0
+            );
+  
+            weeklyStats.push({
+              traineeId: trainee.id,
+              traineeName: trainee.name,
+              attendedDays: attendedDays.length,
+              totalWorkingHours: totalWorkingHours.toFixed(2),
+              totalLunchMinutes,
+              totalLunchHours: (totalLunchMinutes / 60).toFixed(2),
+            });
           }
-
-          // For working days with no report, mark as absent
-          weekDates.forEach(date => {
-            if (dailyAttendance[date].isWorkingDay && !weeklyData.some(data => data.date === date)) {
-              dailyAttendance[date].absentCount++;
-            }
-          });
-
-          // Calculate summary statistics
-          const attendedDays = weeklyData.filter(
-            (day) => day.checkInTime && day.isWorkingDay
-          );
-          const totalWorkingHours = attendedDays.reduce(
-            (sum, day) => sum + (parseFloat(day.totalHoursWorked) || 0),
-            0
-          );
-          const totalLunchMinutes = attendedDays.reduce(
-            (sum, day) => sum + (parseInt(day.totalLunchMinutes) || 0),
-            0
-          );
-
-          // Get day of week for each daily status
-          const dailyStatus = weekDates.map(date => {
-            const dayData = weeklyData.find(d => d.date === date);
-            const dateObj = new Date(date);
-            const dayOfWeek = dateObj.getDay();
-            
-            return {
-              date,
-              dayOfWeek: dayNames[dayOfWeek],
-              status: dayData?.status || (dailyAttendance[date].isWorkingDay ? "Absent" : "Not Working Day"),
-              checkInTime: dayData?.checkInTime || null,
-              checkOutTime: dayData?.checkOutTime || null,
-              hoursWorked: dayData?.totalHoursWorked || 0,
-            };
-          });
-
-          weeklyStats.push({
-            traineeId: trainee.id,
-            traineeName: trainee.name,
-            attendedDays: attendedDays.length,
-            totalWorkingHours: totalWorkingHours.toFixed(2),
-            totalLunchMinutes,
-            totalLunchHours: (totalLunchMinutes / 60).toFixed(2),
-            dailyStatus
-          });
-        }
-      })();
-
-      promises.push(checkPromise);
-    });
-
-    await Promise.all(promises);
-
-    // Calculate attendance rates for each day
-    for (const date in dailyAttendance) {
-      if (dailyAttendance[date].isWorkingDay && totalTraineeCount > 0) {
-        dailyAttendance[date].attendanceRate = (
-          (dailyAttendance[date].presentCount / totalTraineeCount) * 100
-        ).toFixed(2);
-      } else {
-        dailyAttendance[date].attendanceRate = "0.00";
-      }
-
-      // Ensure absent count is correct
-      if (dailyAttendance[date].isWorkingDay) {
-        dailyAttendance[date].absentCount = totalTraineeCount - dailyAttendance[date].presentCount;
-      }
+        })();
+  
+        promises.push(checkPromise);
+      });
+  
+      await Promise.all(promises);
+  
+      res.status(200).json({
+        startDate: startDateStr,
+        endDate: endDateStr,
+        weeklyStats,
+      });
+    } catch (error) {
+      console.error("Weekly stats error:", error);
+      res.status(500).json({ error: "Failed to retrieve weekly statistics" });
     }
-
-    // Calculate weekly summary statistics
-    const workingDaysInWeek = Object.values(dailyAttendance).filter(
-      day => day.isWorkingDay
-    ).length;
-    
-    const totalPresent = Object.values(dailyAttendance).reduce(
-      (sum, day) => sum + day.presentCount, 0
-    );
-    
-    const totalPossibleAttendance = workingDaysInWeek * totalTraineeCount;
-    
-    const weeklyAttendanceRate = totalPossibleAttendance > 0 
-      ? ((totalPresent / totalPossibleAttendance) * 100).toFixed(2) 
-      : "0.00";
-
-    const totalHoursWorked = weeklyStats.reduce(
-      (sum, trainee) => sum + parseFloat(trainee.totalWorkingHours), 
-      0
-    ).toFixed(2);
-    
-    const averageHoursWorked = (totalPresent > 0)
-      ? (parseFloat(totalHoursWorked) / totalPresent).toFixed(2)
-      : "0.00";
-
-    // Sort dailyAttendance by day number (to ensure Monday comes first, etc.)
-    const sortedDailyAttendance = Object.values(dailyAttendance)
-      .sort((a, b) => a.dayNumber - b.dayNumber);
-
-    res.status(200).json({
-      startDate: startDateStr,
-      endDate: endDateStr,
-      summary: {
-        totalTrainees: totalTraineeCount,
-        workingDays: workingDaysInWeek,
-        weeklyAttendanceRate,
-        totalHoursWorked,
-        averageHoursWorked
-      },
-      dailyAttendance: sortedDailyAttendance,
-      weeklyStats,
-    });
-  } catch (error) {
-    console.error("Weekly stats error:", error);
-    res.status(500).json({ error: "Failed to retrieve weekly statistics" });
-  }
-};
+  };
   
   // Get facilitator's trainees monthly statistics
   export const getFacilitatorTraineesMonthlyStats = async (req, res) => {
@@ -355,15 +228,6 @@ export const getFacilitatorTraineesWeeklyStats = async (req, res) => {
         const checkPromise = (async () => {
           const reportRef = doc(db, `reports/${trainee.id}`);
           const reportDoc = await getDoc(reportRef);
-  
-          const traineeStats = {
-            traineeId: trainee.id,
-            traineeName: trainee.name,
-            attendedDays: 0,
-            totalWorkingHours: 0,
-            totalLunchMinutes: 0,
-            totalLunchHours: 0,
-          };
   
           if (reportDoc.exists()) {
             const reportData = reportDoc.data();
@@ -392,13 +256,15 @@ export const getFacilitatorTraineesWeeklyStats = async (req, res) => {
               0
             );
   
-            traineeStats.attendedDays = attendedDays.length;
-            traineeStats.totalWorkingHours = totalWorkingHours.toFixed(2);
-            traineeStats.totalLunchMinutes = totalLunchMinutes;
-            traineeStats.totalLunchHours = (totalLunchMinutes / 60).toFixed(2);
+            monthlyStats.push({
+              traineeId: trainee.id,
+              traineeName: trainee.name,
+              attendedDays: attendedDays.length,
+              totalWorkingHours: totalWorkingHours.toFixed(2),
+              totalLunchMinutes,
+              totalLunchHours: (totalLunchMinutes / 60).toFixed(2),
+            });
           }
-  
-          monthlyStats.push(traineeStats);
         })();
   
         promises.push(checkPromise);
