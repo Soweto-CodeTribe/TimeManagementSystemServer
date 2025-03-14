@@ -37,6 +37,7 @@ export const createStakeholder = async (req, res) => {
             city: req.body.city,
             postalCode: req.body.postalCode,
             role: 'stakeholder', // fixed role
+            twoFactorEnabled: true, // Set two-factor authentication to enabled by default
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
             createdBy: req.user.uid, // Track which super admin created this stakeholder

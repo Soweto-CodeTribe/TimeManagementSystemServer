@@ -35,6 +35,7 @@ export const createFacilitator = async (req, res) => {
             city: req.body.city,
             postalCode: req.body.postalCode,
             role: req.body.role || 'facilitator',
+            twoFactorEnabled: true, // Set two-factor authentication to enabled by default
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp()
         };

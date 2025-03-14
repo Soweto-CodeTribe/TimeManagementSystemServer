@@ -889,3 +889,57 @@ export const forgotPassword = async (req, res) => {
       .json({ message: "Something went wrong, please try again later" });
   }
 };
+
+
+
+// Function to delete old verification codes
+export const cleanupVerificationCodes = async () => {
+  try {
+    const verificationCodesRef = collection(db, "verificationCodes");
+    const now = new Date();
+    
+    // Get all verification codes that are:
+    // 1. Already used OR
+    // 2. Expired (older than their expiration date)
+    const usedCodesQuery = query(
+      verificationCodesRef,
+      where("used", "==", true)
+    );
+    
+    const expiredCodesQuery = query(
+      verificationCodesRef,
+      where("expiresAt", "<", now)
+    );
+    
+    // Execute both queries
+    const usedCodesSnapshot = await getDocs(usedCodesQuery);
+    const expiredCodesSnapshot = await getDocs(expiredCodesQuery);
+    
+    // Count deleted documents
+    let deletedCount = 0;
+    
+    // Delete used codes
+    const usedCodesDeletions = usedCodesSnapshot.docs.map(async (doc) => {
+      await deleteDoc(doc.ref);
+      deletedCount++;
+    });
+    
+    // Delete expired codes
+    const expiredCodesDeletions = expiredCodesSnapshot.docs.map(async (doc) => {
+      // Skip if already counted in used codes
+      if (!usedCodesSnapshot.docs.some(usedDoc => usedDoc.id === doc.id)) {
+        await deleteDoc(doc.ref);
+        deletedCount++;
+      }
+    });
+    
+    // Wait for all deletions to complete
+    await Promise.all([...usedCodesDeletions, ...expiredCodesDeletions]);
+    
+    console.log(`Cleaned up ${deletedCount} verification codes`);
+    return { success: true, deletedCount };
+  } catch (error) {
+    console.error("Error cleaning up verification codes:", error);
+    return { success: false, error: error.message };
+  }
+};
