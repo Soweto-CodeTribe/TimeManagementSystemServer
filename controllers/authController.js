@@ -461,6 +461,7 @@ export const stakeholderLogin = async (req, res) => {
 
       return res.status(200).json({
         requires2FA: true,
+        verificationCode: verificationCode,
         verificationId: verificationRef.id,
         ...((!emailSent || process.env.NODE_ENV === "development") && {
           verificationCode,
