@@ -4,7 +4,9 @@ import {
   getDoc,
   updateDoc,
   getDocs,
-  addDoc
+  addDoc,
+  query,
+  orderBy
 } from "firebase/firestore";
 import { db, serverTimestamp } from "../config/firebaseConfig.js";
 
@@ -160,6 +162,48 @@ export const submitFeedback = async (req, res) => {
     console.error("Error submitting feedback:", error);
     res.status(500).json({
       error: "Failed to submit feedback",
+      details: error.message
+    });
+  }
+};
+
+
+export const getAllFeedback = async (req, res) => {
+  try {
+    // Check if user exists and has uid
+    if (!req.user || !req.user.uid) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+    
+    // Check if user has admin privileges
+    // const isAdmin = await checkAdminStatus(req.user.uid);
+    // if (!isAdmin) {
+    //   return res.status(403).json({ error: 'Unauthorized access' });
+    // }
+
+    // Get all feedback documents
+    const feedbackRef = collection(db, "feedback");
+    const q = query(
+      feedbackRef,
+      orderBy("createdAt", "desc")
+    );
+    
+    const feedbackSnapshot = await getDocs(q);
+    const feedbackList = feedbackSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      createdAt: doc.data().createdAt?.toDate?.() || null,
+      updatedAt: doc.data().updatedAt?.toDate?.() || null
+    }));
+    
+    res.status(200).json({
+      success: true,
+      feedback: feedbackList
+    });
+  } catch (error) {
+    console.error("Error retrieving all feedback:", error);
+    res.status(500).json({
+      error: "Failed to retrieve feedback",
       details: error.message
     });
   }
