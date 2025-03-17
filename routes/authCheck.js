@@ -22,7 +22,7 @@ router.get("/deletedTrainees",verifyToken, deleted_Users);
 router.get("/trainee", verifyToken, trainee_id);
 router.put("/profile-update", verifyToken, update_Trainee)
 router.post("/feedback", verifyToken, submitFeedback)
-router.get("/getFeedBack", getAllFeedback)
+router.get("/getFeedBack", verifyToken, getAllFeedback)
 router.get("/trainee-overview",verifyToken, traineeManagementOverview);
 
 

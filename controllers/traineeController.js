@@ -171,9 +171,9 @@ export const submitFeedback = async (req, res) => {
 export const getAllFeedback = async (req, res) => {
   try {
     // Check if user exists and has uid
-    // if (!req.user || !req.user.uid) {
-    //   return res.status(401).json({ error: 'User not authenticated' });
-    // }
+    if (!req.user || !req.user.uid) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
     
     // Check if user has admin privileges
     // const isAdmin = await checkAdminStatus(req.user.uid);
