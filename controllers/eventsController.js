@@ -7,6 +7,8 @@ import {
   addDoc,
   getDocs,
   Timestamp,
+  query,
+  where,
 } from "firebase/firestore";
 import QRCode from "qrcode";
 import { formatTime } from "./sessionController.js";
@@ -105,5 +107,25 @@ export const guestCheckIn = async (req, res) => {
   } catch (error) {
     console.error("Guest check-in error:", error);
     res.status(500).json({ error: "Failed to check in guest" });
+  }
+};
+
+export const checkEmail = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    const guestRef = collection(db, "eventGuests");
+    const q = query(guestRef, where("email", "==", email));
+    const querySnapshot = await getDocs(q);
+
+    if (querySnapshot.empty) {
+      return res.status(404).json({ message: "Email not found" });
+    }
+
+    const guestData = querySnapshot.docs[0].data();
+    res.status(200).json(guestData);
+  } catch (error) {
+    console.error("Failed to check email:", error);
+    res.status(500).json({ error: "Failed to check email" });
   }
 };
