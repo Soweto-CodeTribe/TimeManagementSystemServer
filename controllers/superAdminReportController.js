@@ -142,6 +142,7 @@ import {
   export const getAllTraineesWeeklyStats = async (req, res) => {
     try {
       const { weekStart, weekNumber, year } = req.query;
+      const { location } = req; // Get location from middleware
   
       // Define date range for the specified week
       let startDate, endDate;
@@ -179,18 +180,23 @@ import {
       const startDateStr = startDate.toISOString().split("T")[0];
       const endDateStr = endDate.toISOString().split("T")[0];
   
-      // Get all trainees
-      const traineesQuery = query(collection(db, "trainees"));
-      const traineesSnapshot = await getDocs(traineesQuery);
+      // Get trainees based on location
+      let traineesQuery;
+      if (location) {
+        traineesQuery = query(collection(db, "trainees"), where("location", "==", location));
+      } else {
+        traineesQuery = query(collection(db, "trainees"));
+      }
   
+      const traineesSnapshot = await getDocs(traineesQuery);
       const totalTrainees = traineesSnapshot.size;
   
       const weeklyStats = [];
       const promises = [];
-      
+  
       // Array of day names
       const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
-      
+  
       // Generate dates array for the work week (Monday to Friday)
       const workWeekDates = [];
       for (let i = 0; i < 5; i++) {
@@ -198,7 +204,7 @@ import {
         date.setDate(startDate.getDate() + i);
         workWeekDates.push(date.toISOString().split("T")[0]);
       }
-      
+  
       // Initialize daily attendance tracking
       const dailyAttendance = {};
       for (let i = 0; i < workWeekDates.length; i++) {
@@ -232,7 +238,6 @@ import {
                   ...data,
                 });
   
-                
                 // Update daily attendance counters for work week days (Monday-Friday)
                 if (workWeekDates.includes(date) && data.isWorkingDay && data.checkInTime) {
                   dailyAttendance[date].isWorkingDay = true;
@@ -270,7 +275,6 @@ import {
   
       await Promise.all(promises);
   
-      
       // Calculate attendance rates as percentages
       const dailyAttendanceRates = Object.values(dailyAttendance).map(day => {
         if (day.isWorkingDay) {
@@ -290,6 +294,7 @@ import {
       res.status(500).json({ error: "Failed to retrieve weekly statistics" });
     }
   };
+  
   // Get all trainees' monthly statistics
   export const getAllTraineesMonthlyStats = async (req, res) => {
     try {
