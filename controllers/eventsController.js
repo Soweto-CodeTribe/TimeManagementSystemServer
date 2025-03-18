@@ -40,12 +40,12 @@ export const guestQR = async (req, res) => {
     await setDoc(doc(db, "events", eventId), eventData);
 
     // Generate QR Code with event ID
-    const qrCode = await QRCode.toDataURL(eventId);
+    // const qrCode = await QRCode.toDataURL(eventId);
 
-    res.status(200).json({ message: "Event QR code generated", qrCode });
+    res.status(200).json({ message: "Event added"});
   } catch (error) {
-    console.error("QR Code generation failed:", error);
-    res.status(500).json({ error: "QR Code generation failed" });
+    console.error("Event generation failed:", error);
+    res.status(500).json({ error: "Event generation failed" });
   }
 };
 

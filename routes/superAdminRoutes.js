@@ -14,7 +14,7 @@ const router = express.Router();
 router.get("/daily", verifyToken, getAllTraineesDailyReport);
 
 // Get all trainees' weekly statistics
-router.get("/weekly",verifyToken,isSuperAdmin, getAllTraineesWeeklyStats);
+router.get("/weekly",verifyToken, getAllTraineesWeeklyStats);
 
 // Get all trainees' monthly statistics
 router.get("/monthly",verifyToken,isSuperAdmin, getAllTraineesMonthlyStats);
