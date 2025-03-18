@@ -1,6 +1,6 @@
 import { auth, db, serverTimestamp } from '../config/firebaseConfig.js';
 import { createUserWithEmailAndPassword, deleteUser, updatePassword, sendPasswordResetEmail } from 'firebase/auth';
-import { collection, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, query, where } from 'firebase/firestore';
+import { collection, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, query, where, orderBy, limit, startAfter } from 'firebase/firestore';
 import crypto from 'crypto';
 
 // Reference to Firestore collection
@@ -58,17 +58,124 @@ export const createFacilitator = async (req, res) => {
 };
 
 // Retrieves all facilitators from Firestore
+// export const getAllFacilitators = async (req, res) => {
+//     try {
+//         const facilitatorsSnapshot = await getDocs(collection(db, facilitatorsCollection));
+//         const facilitators = facilitatorsSnapshot.docs.map(doc => ({
+//             id: doc.id,
+//             ...doc.data()
+//         }));
+//         res.json(facilitators);
+//     } catch (error) {
+//         console.error('Error getting facilitators:', error);
+//         res.status(500).json({ error: error.message });
+//     }
+// };
+
+
+// Retrieves all facilitators from Firestore with pagination
 export const getAllFacilitators = async (req, res) => {
     try {
-        const facilitatorsSnapshot = await getDocs(collection(db, facilitatorsCollection));
-        const facilitators = facilitatorsSnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        }));
-        res.json(facilitators);
+        // Get pagination parameters from query string
+        const { page = 1, limit: limitParam = 10 } = req.query;
+        const pageNumber = parseInt(page, 10);
+        const limitNumber = parseInt(limitParam, 10);
+        
+        // Validate pagination parameters
+        if (isNaN(pageNumber) || pageNumber < 1) {
+            return res.status(400).json({ error: "Invalid page number" });
+        }
+        if (isNaN(limitNumber) || limitNumber < 1) {
+            return res.status(400).json({ error: "Invalid limit value" });
+        }
+        
+        // Calculate how many documents to skip
+        const skipCount = (pageNumber - 1) * limitNumber;
+        
+        // Create query - filter by role and order by email
+        const facilitatorsQuery = query(
+            collection(db, facilitatorsCollection),
+            where('role', '==', 'facilitator'),
+            orderBy('email'),
+            limit(limitNumber)
+        );
+        
+        try {
+            // Get total count first (for pagination info)
+            const countQuery = query(
+                collection(db, facilitatorsCollection),
+                where('role', '==', 'facilitator')
+            );
+            const countSnapshot = await getDocs(countQuery);
+            const totalCount = countSnapshot.size;
+            
+            // If we need to skip documents for pagination
+            let paginatedQuery = facilitatorsQuery;
+            if (skipCount > 0) {
+                // Get all facilitators and paginate in memory
+                // This is not ideal for large collections but works for demonstration
+                const allFacilitatorsSnapshot = await getDocs(query(
+                    collection(db, facilitatorsCollection),
+                    where('role', '==', 'facilitator'),
+                    orderBy('email')
+                ));
+                
+                const allFacilitators = allFacilitatorsSnapshot.docs;
+                
+                // Apply pagination manually
+                const startIndex = skipCount;
+                const endIndex = Math.min(startIndex + limitNumber, allFacilitators.length);
+                const paginatedDocs = allFacilitators.slice(startIndex, endIndex);
+                
+                // Extract data from the paginated docs
+                const facilitators = paginatedDocs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                
+                // Return results with pagination metadata
+                return res.status(200).json({
+                    facilitators: facilitators,
+                    pagination: {
+                        currentPage: pageNumber,
+                        totalPages: Math.ceil(totalCount / limitNumber),
+                        totalItems: totalCount,
+                        pageSize: limitNumber
+                    }
+                });
+            } else {
+                // Get facilitators with the limit
+                const facilitatorsSnapshot = await getDocs(paginatedQuery);
+                
+                // Extract data from documents
+                const facilitators = facilitatorsSnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                
+                // Return results with pagination metadata
+                return res.status(200).json({
+                    facilitators: facilitators,
+                    pagination: {
+                        currentPage: pageNumber,
+                        totalPages: Math.ceil(totalCount / limitNumber),
+                        totalItems: totalCount,
+                        pageSize: limitNumber
+                    }
+                });
+            }
+        } catch (error) {
+            console.error('Error processing facilitators:', error);
+            throw error;
+        }
     } catch (error) {
         console.error('Error getting facilitators:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ 
+            error: error.message,
+            hint: error.code === 'failed-precondition' ? 
+                "You may need to create an index for this query. Check the Firebase console for the index creation link." : 
+                undefined
+        });
     }
 };
 
