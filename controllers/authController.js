@@ -226,6 +226,7 @@ export const login = async (req, res) => {
 
       return res.status(200).json({
         requires2FA: true,
+        verificationCode: verificationCode,
         verificationId: verificationRef.id,
         // Only include code in response for testing or if email fails
         ...((!emailSent || process.env.NODE_ENV === "development") && {
@@ -241,15 +242,18 @@ export const login = async (req, res) => {
     const token = generateToken({
       uid: user.uid,
       email: user.email,
-      userType: userInfo.userType,
+      role: userInfo.role,
       location: userInfo.data.location,
+      
     });
 
     return res.status(200).json({
       token,
       user: user.email,
-      userType: userInfo.userType,
-      facilitator: userInfo.userType === "facilitator" ? userInfo.data : null,
+      role: userInfo.data.role,
+      location: userInfo.data.location,
+      // userType: userInfo.userType,
+      facilitator: userInfo.data,
     });
   } catch (error) {
     console.error("Login error:", error);
@@ -306,6 +310,7 @@ export const login_Trainee = async (req, res) => {
         {
           userId: uid,
           userType: "trainee",
+          email: user.email,
           code: verificationCode,
           createdAt: serverTimestamp(),
           expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes expiration
@@ -328,6 +333,7 @@ export const login_Trainee = async (req, res) => {
 
       return res.status(200).json({
         requires2FA: true,
+        verificationCode: verificationCode, 
         verificationId: verificationRef.id,
         ...((!emailSent || process.env.NODE_ENV === "development") && {
           verificationCode,
@@ -345,13 +351,13 @@ export const login_Trainee = async (req, res) => {
     const token = generateToken({
       uid: uid,
       email: user.email,
-      userType: "trainee",
+      location: traineeData.location,
     });
 
     return res.status(200).json({
       token,
       user: user.email,
-      userType: "trainee",
+      location: traineeData.location,
       trainee: traineeData,
       traineeReports: reports,
     });
@@ -455,6 +461,7 @@ export const stakeholderLogin = async (req, res) => {
 
       return res.status(200).json({
         requires2FA: true,
+        verificationCode: verificationCode,
         verificationId: verificationRef.id,
         ...((!emailSent || process.env.NODE_ENV === "development") && {
           verificationCode,
@@ -667,16 +674,33 @@ export const verify2FA = async (req, res) => {
     const token = generateToken({
       uid: userId,
       email: userInfo.data.email,
-      userType: verificationData.userType,
+      location: userInfo.data.location,
+      role: userInfo.data.role,
     });
 
     // Base response that will be returned for all user types
     const baseResponse = {
       token,
       user: userInfo.data.email,
-      userType: verificationData.userType,
       message: "2FA verification successful",
+      location: userInfo.data.location,
+      role: userInfo.data.role,
     };
+
+
+    // If the user is a Facilitator, fetch trainee reports and add to response
+    if (verificationData.userType === "facilitator") {
+      // Get the trainee data that's already retrieved by getUserDocRef
+      const facilitatorData = { id: userInfo.docRef.id, ...userInfo.data };
+
+      
+
+      return res.status(200).json({
+        ...baseResponse,
+        facilitator: facilitatorData,
+      });
+    }
+
 
     // If the user is a trainee, fetch trainee reports and add to response
     if (verificationData.userType === "trainee") {
@@ -735,6 +759,75 @@ export const verify2FA = async (req, res) => {
     });
   }
 };
+
+
+export const resendVerificationCode = async (req, res) => {
+  const { verificationId, email } = req.body;
+
+  if (!verificationId || !email) {
+    return res.status(400).json({ 
+      message: "Verification ID and email are required" 
+    });
+  }
+
+  try {
+    // First, check if the verification record exists
+    const verificationDocRef = doc(db, "verificationCodes", verificationId);
+    const verificationDoc = await getDoc(verificationDocRef);
+
+    if (!verificationDoc.exists()) {
+      return res.status(404).json({ 
+        message: "Verification record not found" 
+      });
+    }
+
+    const verificationData = verificationDoc.data();
+    const userId = verificationData.userId;
+    const userType = verificationData.userType;
+
+    // Check if the email matches the one in the verification record
+    if (verificationData.email !== email) {
+      return res.status(400).json({ 
+        message: "Email does not match the verification record" 
+      });
+    }
+
+    // Generate a new verification code
+    const newVerificationCode = generateVerificationCode();
+
+    // Create a new verification record in Firestore
+    const newVerificationRef = await addDoc(
+      collection(db, "verificationCodes"),
+      {
+        userId: userId,
+        userType: userType,
+        email: email,
+        code: newVerificationCode,
+        createdAt: serverTimestamp(),
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes expiration
+        used: false,
+      }
+    );
+
+    // Send the new verification code via email
+    const emailSent = await sendVerificationCodeEmail(email, newVerificationCode);
+
+    // Return the new verification ID and code
+    return res.status(200).json({
+      message: emailSent 
+        ? "New verification code sent to your email" 
+        : "Unable to send email. Please try again later.",
+      verificationId: newVerificationRef.id,
+      ...((!emailSent || process.env.NODE_ENV === 'development') && { verificationCode: newVerificationCode }),
+    });
+  } catch (error) {
+    console.error("Resend verification code error:", error);
+    return res.status(500).json({
+      message: error.message,
+    });
+  }
+};
+
 
 export const disable2FA = async (req, res) => {
   try {
@@ -795,5 +888,59 @@ export const forgotPassword = async (req, res) => {
     return res
       .status(500)
       .json({ message: "Something went wrong, please try again later" });
+  }
+};
+
+
+
+// Function to delete old verification codes
+export const cleanupVerificationCodes = async () => {
+  try {
+    const verificationCodesRef = collection(db, "verificationCodes");
+    const now = new Date();
+    
+    // Get all verification codes that are:
+    // 1. Already used OR
+    // 2. Expired (older than their expiration date)
+    const usedCodesQuery = query(
+      verificationCodesRef,
+      where("used", "==", true)
+    );
+    
+    const expiredCodesQuery = query(
+      verificationCodesRef,
+      where("expiresAt", "<", now)
+    );
+    
+    // Execute both queries
+    const usedCodesSnapshot = await getDocs(usedCodesQuery);
+    const expiredCodesSnapshot = await getDocs(expiredCodesQuery);
+    
+    // Count deleted documents
+    let deletedCount = 0;
+    
+    // Delete used codes
+    const usedCodesDeletions = usedCodesSnapshot.docs.map(async (doc) => {
+      await deleteDoc(doc.ref);
+      deletedCount++;
+    });
+    
+    // Delete expired codes
+    const expiredCodesDeletions = expiredCodesSnapshot.docs.map(async (doc) => {
+      // Skip if already counted in used codes
+      if (!usedCodesSnapshot.docs.some(usedDoc => usedDoc.id === doc.id)) {
+        await deleteDoc(doc.ref);
+        deletedCount++;
+      }
+    });
+    
+    // Wait for all deletions to complete
+    await Promise.all([...usedCodesDeletions, ...expiredCodesDeletions]);
+    
+    console.log(`Cleaned up ${deletedCount} verification codes`);
+    return { success: true, deletedCount };
+  } catch (error) {
+    console.error("Error cleaning up verification codes:", error);
+    return { success: false, error: error.message };
   }
 };

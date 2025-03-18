@@ -95,18 +95,18 @@ async function registerTrainee(trainee) {
       };
     }
     // Check if trainee already exists
-    const existsCheck = await checkTraineeExists(
-      trainee.email,
-      trainee.idNumber
-    );
+    // const existsCheck = await checkTraineeExists(
+    //   trainee.email,
+    //   trainee.idNumber
+    // );
 
-    if (existsCheck.exists) {
-      return {
-        success: false,
-        status: "skipped",
-        message: `Trainee already exists with this ${existsCheck.reason}`,
-      };
-    }
+    // if (existsCheck.exists) {
+    //   return {
+    //     success: false,
+    //     status: "skipped",
+    //     message: `Trainee already exists with this ${existsCheck.reason}`,
+    //   };
+    // }
 
     // Create user in Firebase Authentication
     const userCredential = await createUserWithEmailAndPassword(
@@ -210,17 +210,17 @@ async function registerTraineesInBatches(trainees) {
 
   console.log(`Starting batch processing for ${trainees.length} trainees`); 
 
-  for (let i = 0; i < trainees.length; i += CONFIG.batchSize) {
-    const batch = trainees.slice(i, i + CONFIG.batchSize);
-    console.log(`Processing batch ${Math.floor(i / CONFIG.batchSize) + 1}/${Math.ceil(trainees.length / CONFIG.batchSize)}`);
+  // for (let i = 0; i < trainees.length; i += CONFIG.batchSize) {
+  //   const batch = trainees.slice(i, i + CONFIG.batchSize);
+  //   console.log(`Processing batch ${Math.floor(i / CONFIG.batchSize) + 1}/${Math.ceil(trainees.length / CONFIG.batchSize)}`);
     
-    for (const trainee of batch) {
-      console.log("Processing individual trainee:", trainee.email); // ADD THIS LOG
+  //   for (const trainee of batch) {
+  //     console.log("Processing individual trainee:", trainee.email); // ADD THIS LOG
 
-      const result = await registerTrainee(trainee);
-      console.log("Trainee registration result:", result); // ADD THIS LOG
-    }
-  }
+  //     const result = await registerTrainee(trainee);
+  //     console.log("Trainee registration result:", result); // ADD THIS LOG
+  //   }
+  // }
 
   const results = {
     successful: [],

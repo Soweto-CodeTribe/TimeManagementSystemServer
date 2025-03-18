@@ -154,7 +154,6 @@ export const get_Users = async (req, res) => {
 //     });
 //   }
 // };
-
 export const get_Users_By_Location = async (req, res) => {
   try {
     // Check if user exists and has uid
@@ -177,7 +176,7 @@ export const get_Users_By_Location = async (req, res) => {
       return res.status(400).json({ error: "Facilitator location not set" });
     }
 
-    // Pagination parameters
+    // Pagination parameters (still needed for pagination info)
     const pageSize = parseInt(req.query.limit) || 10;
     const pageNum = parseInt(req.query.page) || 1;
     
@@ -190,20 +189,18 @@ export const get_Users_By_Location = async (req, res) => {
     
     // Get all matching documents
     const snapshot = await getDocs(locationQuery);
-    
-    // Calculate pagination manually
-    const startIndex = (pageNum - 1) * pageSize;
     const totalTrainees = snapshot.docs.length;
-    const paginatedDocs = snapshot.docs.slice(startIndex, startIndex + pageSize);
     
-    const trainees = paginatedDocs.map((doc) => ({
+    // Get all trainees data
+    const allTrainees = snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     }));
 
-    // Convert any timestamp fields to ISO strings
-    const formattedTrainees = trainees.map((trainee) => {
+    // Format all trainees data
+    const formattedTrainees = allTrainees.map((trainee) => {
       const formatted = { ...trainee };
+      // Uncomment if you need timestamp conversion
       // if (formatted.createdAt) {
       //   formatted.createdAt = formatted.createdAt.toDate().toISOString();
       // }
@@ -213,8 +210,15 @@ export const get_Users_By_Location = async (req, res) => {
       return formatted;
     });
 
+    // Calculate which trainees would be on the current page
+    const startIndex = (pageNum - 1) * pageSize;
+    const paginatedTrainees = formattedTrainees.slice(startIndex, startIndex + pageSize);
+
     res.status(200).json({
-      trainees: formattedTrainees,
+      // Send all trainees for frontend searching
+      allTrainees: formattedTrainees,
+      // Also send current page trainees for easy display
+      currentPageTrainees: paginatedTrainees,
       pagination: {
         totalTrainees,
         totalPages: Math.ceil(totalTrainees / pageSize),
@@ -320,6 +324,7 @@ export const create_user = async (req, res) => {
       ...(postalCode && { postalCode }),
       ...(messages && { messages }),
       ...(notifications && { notifications }),
+      twoFactorEnabled: true, // Set two-factor authentication to enabled by default
       createdAt: serverTimestamp(),
     };
 

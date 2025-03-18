@@ -1,6 +1,6 @@
 import { auth, db, serverTimestamp } from '../config/firebaseConfig.js';
 import { createUserWithEmailAndPassword, deleteUser, sendPasswordResetEmail } from 'firebase/auth';
-import { collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, where, updateDoc } from 'firebase/firestore';
+import { collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, where, updateDoc, orderBy, limit, startAfter } from 'firebase/firestore';
 import { generateStakeholderToken } from '../utilities/index.js';
 import crypto from 'crypto';
 
@@ -37,6 +37,7 @@ export const createStakeholder = async (req, res) => {
             city: req.body.city,
             postalCode: req.body.postalCode,
             role: 'stakeholder', // fixed role
+            twoFactorEnabled: true, // Set two-factor authentication to enabled by default
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
             createdBy: req.user.uid, // Track which super admin created this stakeholder
@@ -72,19 +73,108 @@ export const createStakeholder = async (req, res) => {
 };
 
 // Retrieves all stakeholders from Firestore
+// export const getAllStakeholders = async (req, res) => {
+//     try {
+//         const stakeholdersSnapshot = await getDocs(collection(db, stakeholdersCollection));
+//         const stakeholders = stakeholdersSnapshot.docs.map(doc => ({
+//             id: doc.id,
+//             ...doc.data()
+//         }));
+//         res.json(stakeholders);
+//     } catch (error) {
+//         console.error('Error getting stakeholders:', error);
+//         res.status(500).json({ error: error.message });
+//     }
+// };
+
+
+// Retrieves all stakeholders from Firestore with pagination
+
 export const getAllStakeholders = async (req, res) => {
     try {
-        const stakeholdersSnapshot = await getDocs(collection(db, stakeholdersCollection));
-        const stakeholders = stakeholdersSnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        }));
-        res.json(stakeholders);
+        // Get pagination parameters from query string
+        const { page = 1, limit: limitParam = 10 } = req.query;
+        const pageNumber = parseInt(page, 10);
+        const limitNumber = parseInt(limitParam, 10);
+        
+        // Validate pagination parameters
+        if (isNaN(pageNumber) || pageNumber < 1) {
+            return res.status(400).json({ error: "Invalid page number" });
+        }
+        if (isNaN(limitNumber) || limitNumber < 1) {
+            return res.status(400).json({ error: "Invalid limit value" });
+        }
+        
+        // Calculate how many documents to skip
+        const skipCount = (pageNumber - 1) * limitNumber;
+        
+        // Create a base query ordering by createdAt
+        const baseQuery = query(
+            collection(db, stakeholdersCollection),
+            orderBy('createdAt', 'desc')
+        );
+        
+        try {
+            // Get total count first (for pagination info)
+            const countSnapshot = await getDocs(baseQuery);
+            const totalCount = countSnapshot.size;
+            
+            // Apply pagination
+            let paginatedQuery;
+            
+            if (skipCount > 0 && skipCount < totalCount) {
+                // Get the last visible document from the previous page
+                const lastVisibleDoc = countSnapshot.docs[skipCount - 1];
+                if (lastVisibleDoc) {
+                    paginatedQuery = query(
+                        collection(db, stakeholdersCollection),
+                        orderBy('createdAt', 'desc'),
+                        startAfter(lastVisibleDoc),
+                        limit(limitNumber)
+                    );
+                }
+            } else {
+                paginatedQuery = query(
+                    collection(db, stakeholdersCollection),
+                    orderBy('createdAt', 'desc'),
+                    limit(limitNumber)
+                );
+            }
+            
+            // Execute final query
+            const stakeholdersSnapshot = await getDocs(paginatedQuery);
+            
+            // Extract data from documents
+            const stakeholders = stakeholdersSnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+            
+            // Return the results with pagination metadata
+            return res.status(200).json({
+                stakeholders: stakeholders,
+                pagination: {
+                    currentPage: pageNumber,
+                    totalPages: Math.ceil(totalCount / limitNumber),
+                    totalItems: totalCount,
+                    pageSize: limitNumber
+                }
+            });
+        } catch (error) {
+            console.error('Error processing stakeholders:', error);
+            throw error;
+        }
     } catch (error) {
         console.error('Error getting stakeholders:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ 
+            error: error.message,
+            hint: error.code === 'failed-precondition' ? 
+                "You may need to create an index for this query. Check the Firebase console for the index creation link." : 
+                undefined
+        });
     }
 };
+
 
 // Retrieves a single stakeholder by their UID
 export const getStakeholder = async (req, res) => {

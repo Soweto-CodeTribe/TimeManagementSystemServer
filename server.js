@@ -18,7 +18,7 @@ import { scheduleQRCodeGeneration } from "./controllers/qrCodeController.js";
 import superAdminRoutes from "./routes/superAdminRoutes.js";
 import facilitatorReport from "./routes/facilitatorReportRoutes.js";
 import { autoCheckOutTrainees, scheduleAutoCheckOut, standardizeTimeFormat } from "./controllers/sessionController.js";
-
+import { cleanupVerificationCodes } from "./controllers/authController.js";
 const PORT = process.env.PORT;
 const app = express();
 
@@ -52,6 +52,16 @@ app.use("/api/super-admin", superAdminRoutes);
 app.use("/api/", facilitatorReport);
 
 app.all("*", (req, res) => res.send("error 404 page not found"));
+
+
+// Run cleanup
+cleanupVerificationCodes()
+  .then(result => {
+    if (result.success) {
+      console.log(`Startup cleanup: removed ${result.deletedCount} old verification codes`);
+    }
+  })
+  .catch(err => console.error("Startup cleanup failed:", err));
 
 app.listen(PORT, () =>
   console.log(
