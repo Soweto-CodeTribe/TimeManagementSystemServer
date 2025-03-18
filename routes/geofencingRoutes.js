@@ -12,11 +12,11 @@ import { isFacilitator, isSuperAdmin } from "../middleware/auth.js";
 
 const router = express.Router();
 
-router.post("/locations", verifyToken,isFacilitator, addAllowedLocation);
-router.get("/locations", verifyToken,isFacilitator, getAllowedLocations);
-router.put("/locations/:id", verifyToken,isFacilitator, updateAllowedLocation);
-router.delete("/locations/:id", verifyToken,isFacilitator, deleteAllowedLocation);
-router.post("/validate-location", verifyToken, validateLocation);
-router.get("/location-logs", verifyToken,isFacilitator, getLocationLogs);
+router.post("/locations",  addAllowedLocation);
+router.get("/locations",  getAllowedLocations);
+router.put("/locations/:id",  updateAllowedLocation);
+router.delete("/locations/:id",  deleteAllowedLocation);
+router.post("/validate-location",  validateLocation);
+router.get("/location-logs",  getLocationLogs);
 
 export default router
