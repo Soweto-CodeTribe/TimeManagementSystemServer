@@ -228,21 +228,3 @@ export const validateLocation = async (req, res) => {
     }
   };
   
-  // GET - Get location logs
-  export const getLocationLogs = async (req, res) => {
-    try {
-      const logsRef = collection(db, "locationLogs");
-      const snapshot = await getDocs(logsRef);
-      const logs = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      res.status(200).json(logs);
-    } catch (error) {
-      console.error("Error fetching location logs:", error);
-      res.status(500).json({ 
-        error: "Failed to fetch location logs", 
-        details: error.message 
-      });
-    }
-  };

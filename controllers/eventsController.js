@@ -7,9 +7,13 @@ import {
   addDoc,
   getDocs,
   Timestamp,
+  query,
+  where,
+  updateDoc,
 } from "firebase/firestore";
 import QRCode from "qrcode";
 import { formatTime } from "./sessionController.js";
+import { sendGuestEmail } from "../services/guestEmailServices.js";
 
 export const getEventQRcode = async (req, res) => {
   try {
@@ -36,12 +40,12 @@ export const guestQR = async (req, res) => {
     await setDoc(doc(db, "events", eventId), eventData);
 
     // Generate QR Code with event ID
-    const qrCode = await QRCode.toDataURL(eventId);
+    // const qrCode = await QRCode.toDataURL(eventId);
 
-    res.status(200).json({ message: "Event QR code generated", qrCode });
+    res.status(200).json({ message: "Event added"});
   } catch (error) {
-    console.error("QR Code generation failed:", error);
-    res.status(500).json({ error: "QR Code generation failed" });
+    console.error("Event generation failed:", error);
+    res.status(500).json({ error: "Event generation failed" });
   }
 };
 
@@ -77,33 +81,82 @@ export const getAllEvents = async (req, res) => {
 
 export const guestCheckIn = async (req, res) => {
   try {
-    // const { eventId } = req.params;
     const guestInfo = req.body;
     const checkInTime = formatTime();
+    const currentDate = new Date().toISOString().split("T")[0];
 
-    // const eventDoc = await getDoc(doc(db, "events", eventId));
-    // if (!eventDoc.exists()) {
-    //   return res.status(404).json({ error: "Event not found" });
-    // }
+    // Check if this is a returning guest
+    if (guestInfo.isReturning && guestInfo.guestId) {
+      // This is a returning guest, update the existing document
+      const guestRef = doc(db, "eventGuests", guestInfo.guestId);
+      
+      // Get the current document to preserve existing data
+      const guestDoc = await getDoc(guestRef);
+      
+      if (!guestDoc.exists()) {
+        return res.status(404).json({ error: "Guest record not found" });
+      }
+      
+      await updateDoc(guestRef, {
+        checkInTime,
+        checkInDate: currentDate,
+        lastVisit: guestDoc.data().checkInDate, 
+        returnVisit: true,
+        timestamp: Timestamp.now(),
+      });
+      
+      res.status(200).json({
+        message: "Returning guest check-in successful",
+        guestId: guestInfo.guestId,
+        checkInTime,
+        returnVisit: true
+      });
+    } else {
+      const guestRef = doc(collection(db, "eventGuests"));
+      await setDoc(guestRef, {
+        guestId: guestRef.id,
+        checkInTime,
+        checkInDate: currentDate,
+        returnVisit: false,
+        ...guestInfo,
+        timestamp: Timestamp.now(),
+      });
 
-    const guestRef = doc(collection(db, "eventGuests"));
-    await setDoc(guestRef, {
-      guestId: guestRef.id,
-      // eventId,
-      // eventName: eventDoc.data().title,
-      checkInTime,
-      checkInDate: new Date().toISOString().split("T")[0],
-      ...guestInfo,
-      timestamp: Timestamp.now(),
-    });
+      await sendGuestEmail(guestInfo.email);
 
-    res.status(200).json({
-      message: "Guest check-in successful",
-      guestId: guestRef.id,
-      checkInTime,
-    });
+      res.status(200).json({
+        message: "New guest check-in successful",
+        guestId: guestRef.id,
+        checkInTime,
+        returnVisit: false
+      });
+    }
   } catch (error) {
     console.error("Guest check-in error:", error);
     res.status(500).json({ error: "Failed to check in guest" });
+  }
+};
+
+export const checkEmail = async (req, res) => {
+  try {
+    const { email } = req.body;
+    const guestsCollection = collection(db, "eventGuests");
+
+    const q = query(guestsCollection, where("email", "==", email));
+    const querySnapshot = await getDocs(q);
+
+    if (querySnapshot.empty) {
+      return res.status(404).json({ error: "Guest not found" });
+    }
+
+    let guestData;
+    querySnapshot.forEach((doc) => {
+      guestData = { guestId: doc.id, ...doc.data() };
+    });
+
+    res.status(200).json(guestData);
+  } catch (error) {
+    console.error("Guest email check error:", error);
+    res.status(500).json({ error: "Error checking guest email" });
   }
 };
