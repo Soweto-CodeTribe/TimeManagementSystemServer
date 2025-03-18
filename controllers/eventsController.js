@@ -12,6 +12,7 @@ import {
 } from "firebase/firestore";
 import QRCode from "qrcode";
 import { formatTime } from "./sessionController.js";
+import { sendGuestEmail } from "../services/guestEmailServices.js";
 
 export const getEventQRcode = async (req, res) => {
   try {
@@ -98,6 +99,8 @@ export const guestCheckIn = async (req, res) => {
       ...guestInfo,
       timestamp: Timestamp.now(),
     });
+
+    await sendGuestEmail(guestInfo.email);
 
     res.status(200).json({
       message: "Guest check-in successful",
