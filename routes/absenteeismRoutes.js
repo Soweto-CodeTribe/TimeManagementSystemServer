@@ -7,11 +7,12 @@ import {
   deleteUpload,
   getUploadsByDateRange
 } from '../controllers/absenteeismController.js';
+import { verifyToken } from '../utilities/index.js';
 
 const router = express.Router();
 
 // Create a new upload - trainees can upload their own documents
-router.post('/create',  createUpload);
+router.post('/create',verifyToken, createUpload);
 
 // Get all uploads for a specific trainee
 router.get('/trainee/:traineeId', getTraineeUploads);

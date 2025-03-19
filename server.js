@@ -51,7 +51,7 @@ app.use("/api/guests", eventsRoutes);
 app.use("/api/stakeholder", stakeholderRoutes);
 app.use("/api/super-admin", superAdminRoutes);
 app.use("/api/", facilitatorReport);
-app.use("api/absenteeism", absenteeismRoutes);
+app.use("/api/", absenteeismRoutes);
 app.all("*", (req, res) => res.send("error 404 page not found"));
 
 
