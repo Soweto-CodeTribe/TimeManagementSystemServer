@@ -15,7 +15,7 @@ const router = express.Router();
 router.post('/create',verifyToken, createUpload);
 
 // Get all uploads for a specific trainee
-router.get('/trainee/:traineeId', getTraineeUploads);
+router.get('/trainee/:traineeId',verifyToken, getTraineeUploads);
 
 // Get all uploads (with filtering) - only for facilitators and admins
 // router.get('/', getAllUploads);
