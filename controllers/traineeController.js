@@ -144,6 +144,7 @@ export const submitFeedback = async (req, res) => {
       traineeId: traineeDoc.id,
       uid: req.user.uid,
       feedbackText,
+      email: req.user.email,
       category: category || 'general',
       rating: rating || null,
       status: 'new',
@@ -189,12 +190,37 @@ export const getAllFeedback = async (req, res) => {
     );
     
     const feedbackSnapshot = await getDocs(q);
-    const feedbackList = feedbackSnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-      createdAt: doc.data().createdAt?.toDate?.() || null,
-      updatedAt: doc.data().updatedAt?.toDate?.() || null
-    }));
+    
+    // Get all trainee data to match with feedback
+    const traineesRef = collection(db, "trainees");
+    const traineesSnapshot = await getDocs(traineesRef);
+    const traineesData = {};
+    
+    traineesSnapshot.docs.forEach(doc => {
+      // traineesData[doc.id] = doc.data();
+      const traineeInfo = doc.data();
+      traineesData[doc.id] = {
+        fullName: traineeInfo.fullName || "Unknown User",
+        name: traineeInfo.name || "Unknown name",
+        email: traineeInfo.email || "No Email",
+      };
+    });
+    
+    // Map feedback data and include username from trainee data
+    const feedbackList = feedbackSnapshot.docs.map(doc => {
+      const feedbackData = doc.data();
+      const traineeData = traineesData[feedbackData.traineeId] || {};
+      
+      return {
+        id: doc.id,
+        ...feedbackData,
+        fullName: traineeData.fullName || 'Unknown User',
+        name: traineeData.name || "Unknown name",
+        email: traineeData.email || 'Unknown email',
+        createdAt: feedbackData.createdAt?.toDate?.() || null,
+        updatedAt: feedbackData.updatedAt?.toDate?.() || null
+      };
+    });
     
     res.status(200).json({
       success: true,

@@ -1,5 +1,6 @@
 import express from "express";
 import {
+  checkEmail,
   getAllEvents,
   getEvent,
   getEventQRcode,
@@ -15,6 +16,7 @@ router.post("/generate-event-QR", verifyToken, isFacilitator, guestQR);
 router.get("/event/:eventId", getEvent);
 router.get("/all-events/", getEventQRcode);
 router.post("/event/check-in", guestCheckIn);
+router.post("/check-email", checkEmail);
 
 
 // Stakeholder read-only routes
