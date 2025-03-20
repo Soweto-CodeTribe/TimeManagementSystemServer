@@ -19,6 +19,7 @@ import superAdminRoutes from "./routes/superAdminRoutes.js";
 import facilitatorReport from "./routes/facilitatorReportRoutes.js";
 import { autoCheckOutTrainees, scheduleAutoCheckOut, standardizeTimeFormat } from "./controllers/sessionController.js";
 import { cleanupVerificationCodes } from "./controllers/authController.js";
+import absenteeismRoutes from "./routes/absenteeismRoutes.js";
 const PORT = process.env.PORT;
 const app = express();
 
@@ -29,7 +30,6 @@ app.use(express.urlencoded({ extended: true }));
 //Call function to auto generate QR codes daily
 scheduleQRCodeGeneration();
 // scheduleAutoCheckOut()
-//  getGuests()
 // const timeTest = standardizeTimeFormat("07:23 pm")
 // console.log("converter time: ",timeTest)
 
@@ -51,7 +51,7 @@ app.use("/api/guests", eventsRoutes);
 app.use("/api/stakeholder", stakeholderRoutes);
 app.use("/api/super-admin", superAdminRoutes);
 app.use("/api/", facilitatorReport);
-
+app.use("/api/", absenteeismRoutes);
 app.all("*", (req, res) => res.send("error 404 page not found"));
 
 

@@ -3,7 +3,8 @@ import express from "express";
 import { verifyToken } from "../utilities/index.js";
 import { create_user, delete_User, update_User, deleted_Users, get_Users, get_Users_By_Location, traineeManagementOverview } from "../controllers/userController.js";
 import { getAllFeedback, submitFeedback, trainee_id, update_Trainee } from '../controllers/traineeController.js';
-import {  isSuperAdmin, completeStakeholderAccess} from '../middleware/auth.js';
+import {  isSuperAdmin,isFacilitator, completeStakeholderAccess} from '../middleware/auth.js';
+
 
 const router = express.Router();
 
