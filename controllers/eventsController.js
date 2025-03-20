@@ -184,3 +184,62 @@ export const checkEmail = async (req, res) => {
     res.status(500).json({ error: "Error checking guest email" });
   }
 };
+
+export const getGuests = async (req, res) => {
+  try {
+    const eventsCollection = collection(db, "events");
+    const eventsSnapshot = await getDocs(eventsCollection);
+
+    const eventsWithGuests = [];
+
+    for (const eventDoc of eventsSnapshot.docs) {
+      const eventData = eventDoc.data();
+
+      if (!eventData.guests || eventData.guests.length === 0) {
+        eventsWithGuests.push({
+          ...eventData,
+          guestDetails: [],
+        });
+        continue;
+      }
+
+      const guestDetails = [];
+      for (const email of eventData.guests) {
+        const guestsQuery = query(
+          collection(db, "eventGuests"),
+          where("email", "==", email)
+        );
+
+        const guestSnapshot = await getDocs(guestsQuery);
+
+        if (!guestSnapshot.empty) {
+          guestSnapshot.docs.forEach((guestDoc) => {
+            guestDetails.push({
+              id: guestDoc.id,
+              ...guestDoc.data(),
+            });
+          });
+        } else {
+          guestDetails.push({ email });
+        }
+      }
+
+      eventsWithGuests.push({
+        ...eventData,
+        guestDetails,
+      });
+    }
+
+    return res.status(200).json({
+      eventsWithGuests,
+    });
+
+    // console.log(eventsWithGuests)
+  } catch (error) {
+    console.error("Error fetching guests:", error);
+    return res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};

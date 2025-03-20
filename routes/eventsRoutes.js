@@ -3,6 +3,7 @@ import {
   checkEmail,
   getAllEvents,
   getEvent,
+  getGuests,
   guestCheckIn,
   guestQR,
 } from "../controllers/eventsController.js";
@@ -19,6 +20,7 @@ router.get("/event/:eventId", getEvent);
 router.get("/all-events/", getAllEvents);
 router.route("/event/check-in").patch(guestCheckIn).post(guestCheckIn);
 router.post("/check-email", checkEmail);
+router.get("/getGuests",verifyToken, getGuests);
 
 // Stakeholder read-only routes
 router.get("/event/:eventId", completeStakeholderAccess, getEvent);
