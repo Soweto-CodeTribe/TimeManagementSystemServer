@@ -3,15 +3,29 @@ import { sendMessageNotification,
   updateTraineeNotificationFields,
   resetTraineeNotificationFields } from '../services/notificationService.js';
 
-  
+  // Helper function to format timestamps consistently
+  const formatTimestamp = (timestamp) => {
+    if (!timestamp) return null;
+    
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    return date.toISOString();
+  };
+
+
+
 // GET METHOD - Get all messages
 export const get_Messages = async (req, res) => {
   try {
     const snapshot = await db.collection("messages").get();
-    const messages = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+    const messages = snapshot.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        createdAt: formatTimestamp(data.createdAt),
+        updatedAt: formatTimestamp(data.updatedAt)
+      };
+    });
     res.status(200).json(messages);
   } catch (error) {
     console.error("Error fetching messages:", error);
@@ -58,6 +72,25 @@ export const create_Message = async (req, res) => {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
+    let senderName = "Unknown User";
+    // First check facilitator collection
+    const facilitatorDoc = await db.collection("facilitators").doc(senderId).get();
+    if (facilitatorDoc.exists) {
+      senderName = facilitatorDoc.data().name || facilitatorDoc.data().fullName ;
+      console.log("user: ", senderName)
+      // senderType = "facilitator";
+
+      
+    } else {
+      // If not found in facilitator, check trainees
+      const traineeDoc = await db.collection("trainees").doc(senderId).get();
+      if (traineeDoc.exists) {
+        senderName = traineeDoc.data().name || traineeDoc.data().fullName;
+        console.log("userT: ", senderName)
+        // senderType = "trainee";
+      }
+    }
+
     // Use a transaction to get and update the counter
     const counterRef = db.collection("counters").doc("messageCounter");
     let newMessageId = 1;
@@ -80,6 +113,7 @@ export const create_Message = async (req, res) => {
       priority: priority || 'normal',
       category: category || 'general',
       senderId,
+      senderName,
       status: 'sent',
       readBy: [],
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -88,14 +122,14 @@ export const create_Message = async (req, res) => {
     await db.collection("messages").doc(newMessageId.toString()).set(newMessage);
 
     // Update trainee notification fields
-    await updateTraineeNotificationFields(recipients, messageDocId);
+    await updateTraineeNotificationFields(recipients, newMessageId.toString());
 
     // Send push notification for new message
     await sendMessageNotification(newMessage);
 
     // Get the saved document to return
     const newDoc = await db.collection("messages").doc(newMessageId.toString()).get();
-    const savedMessage = { id: newMessageId, ...newDoc.data() };
+    const savedMessage = { id: newMessageId, ...newDoc.data(), createdAt: formatTimestamp(newDoc.data().createdAt) };
 
     if (savedMessage.createdAt) {
       savedMessage.createdAt = savedMessage.createdAt.toDate().toISOString();
