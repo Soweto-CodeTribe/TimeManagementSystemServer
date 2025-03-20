@@ -86,6 +86,19 @@ export const guestCheckIn = async (req, res) => {
     const checkInTime = formatTime();
     const currentDate = new Date().toISOString().split("T")[0];
 
+    // Check if the event is closed
+    if (guestInfo.eventId) {
+      const eventRef = doc(db, "events", guestInfo.eventId);
+      const eventDoc = await getDoc(eventRef);
+      
+      if (eventDoc.exists() && eventDoc.data().status === "closed") {
+        return res.status(403).json({
+          message: "Cannot check in - this event is closed",
+          eventId: guestInfo.eventId
+        });
+      }
+    }
+
     // console.log("Received guest info:", guestInfo);
 
     if (guestInfo.guestId) {
@@ -160,7 +173,6 @@ export const guestCheckIn = async (req, res) => {
     return res.status(500).json({ error: "Failed to check in guest" });
   }
 };
-
 export const checkEmail = async (req, res) => {
   try {
     const { email } = req.body;
@@ -241,5 +253,21 @@ export const getGuests = async (req, res) => {
       message: "Internal Server Error",
       error: error.message,
     });
+  }
+};
+
+ export const closeEvent = async (req, res) => {
+  try {
+    const { eventId } = req.body;
+
+    await updateDoc(doc(db, "events", eventId), {
+      status: "closed",
+      closedAt: Timestamp.now(),
+    });
+
+    res.status(200).json({ message: "Event closed successfully" });
+  } catch (error) {
+    console.error("Event closing error:", error);
+    res.status(500).json({ error: "Failed to close event" });
   }
 };

@@ -1,6 +1,7 @@
 import express from "express";
 import {
   checkEmail,
+  closeEvent,
   getAllEvents,
   getEvent,
   getGuests,
@@ -20,7 +21,8 @@ router.get("/event/:eventId", getEvent);
 router.get("/all-events/", getAllEvents);
 router.route("/event/check-in").patch(guestCheckIn).post(guestCheckIn);
 router.post("/check-email", checkEmail);
-router.get("/getGuests",verifyToken, getGuests);
+router.get("/getGuests", verifyToken, getGuests);
+router.post("/events/close", closeEvent);
 
 // Stakeholder read-only routes
 router.get("/event/:eventId", completeStakeholderAccess, getEvent);
