@@ -29,7 +29,7 @@ app.use(express.urlencoded({ extended: true }));
 
 //Call function to auto generate QR codes daily
 scheduleQRCodeGeneration();
-scheduleAutoCheckOut()
+// scheduleAutoCheckOut()
 // const timeTest = standardizeTimeFormat("07:23 pm")
 // console.log("converter time: ",timeTest)
 
