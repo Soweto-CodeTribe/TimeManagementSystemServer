@@ -14,7 +14,7 @@ router.get("/trainees",
     verifyToken, 
     get_Users);
 
-router.get("/my-trainees", verifyToken,isFacilitator, get_Users_By_Location);
+router.get("/my-trainees", verifyToken, get_Users_By_Location);
 router.post("/trainees", verifyToken, create_user);
 router.put("/trainees/:id",verifyToken, update_User);
 router.delete("/trainees/:id",verifyToken, delete_User);
