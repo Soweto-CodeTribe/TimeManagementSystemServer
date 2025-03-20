@@ -26,7 +26,7 @@ router.delete('/:id', verifyToken, deleteTicket);
 
 // Trainee ticket routes
 router.post('/', verifyToken, createTicket);
-router.get('/my-tickets', verifyToken, getMyTickets);
+router.get('/my-tickets/:traineeId?', verifyToken, getMyTickets);
 router.get('/my-tickets/:id', verifyToken, getMyTicketById);
 router.put('/my-tickets/:id', verifyToken, updateMyTicket);
 router.post('/my-tickets/:id/cancel', verifyToken, cancelMyTicket);
