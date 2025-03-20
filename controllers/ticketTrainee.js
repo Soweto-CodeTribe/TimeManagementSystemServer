@@ -28,10 +28,31 @@ export const createTicket = async (req, res) => {
             updatedAt: new Date().toISOString()
         };
         
+        // Fetch trainee name from trainees collection
+        try {
+            const traineesRef = collection(db, 'trainees');
+            const snapshot = await getDocs(traineesRef);
+            const traineeDoc = snapshot.docs.find(doc => doc.data().uid === req.user.uid);
+            
+            if (traineeDoc) {
+                const name = traineeDoc.data().name || traineeDoc.data().fullName;
+                const surname = traineeDoc.data().surname
+                if (name && surname) {
+                    ticket.traineeName = name;
+                    ticket.traineeSurname = surname;
+                    console.log("Found trainee name:", name);
+                }
+            }
+        } catch (fetchError) {
+            console.error('Error fetching trainee data:', fetchError);
+            // Continue without traineeName if there's an error fetching
+        }
+        
         const docRef = await addDoc(ticketsRef, ticket);
         res.status(201).json({ id: docRef.id, ...ticket });
     } catch (error) {
         res.status(400).json({ error: error.message });
+        console.error('Error creating ticket:', error);
     }
 };
 
