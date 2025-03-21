@@ -34,7 +34,7 @@ router.delete('/:id', verifyToken, deleteTicket);
 
 //get specific trainee's tickets
 router.get('/trainee/:traineeId/tickets', verifyToken, getMyTickets);
-
+router.post('/', verifyToken, createTicket);
 // Operations on a specific ticket
 router.get('/my-tickets/:id', verifyToken, getMyTicketById);
 router.put('/my-tickets/:id', verifyToken, updateMyTicket);
