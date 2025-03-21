@@ -562,56 +562,46 @@ export const closeTicket = async (req, res) => {
 };
 
 export const deleteTicket = async (req, res) => {
-    try {
-        // Verify facilitator
-        const facilitatorRef = doc(db, 'facilitators', req.user.uid);
-        const facilitatorDoc = await getDoc(facilitatorRef);
-        
-        if (!facilitatorDoc.exists()) {
-            return res.status(403).json({ error: 'Unauthorized: Not a facilitator' });
-        }
-        
-        const facilitator = facilitatorDoc.data();
-        const facilitatorRole = facilitator.role || 'facilitator';
-        const facilitatorName = facilitator.name || facilitator.fullName || 'Unknown';
-        
-        // Only allow delete for facilitators with admin role or super admin
-        if (facilitatorRole !== 'admin' && facilitatorRole !== 'super-admin') {
-            return res.status(403).json({ 
-                error: 'Unauthorized: Only administrators can delete tickets' 
-            });
-        }
-        
-        const ticketRef = doc(db, 'tickets', req.params.id);
-        const ticketDoc = await getDoc(ticketRef);
-        
-        if (!ticketDoc.exists()) {
-            return res.status(404).json({ error: 'Ticket not found' });
-        }
-        
-        // Get ticket history subcollection
-        const historyRef = collection(db, 'tickets', req.params.id, 'history');
-        const historySnapshot = await getDocs(historyRef);
-        
-        // Delete all history documents
-        const deleteHistoryPromises = historySnapshot.docs.map(doc => 
-            deleteDoc(doc.ref)
-        );
-        
-        await Promise.all(deleteHistoryPromises);
-        
-        // Delete the ticket
-        await deleteDoc(ticketRef);
-        
-        res.json({
-            message: `Ticket has been deleted successfully by ${facilitatorRole} ${facilitatorName}`,
-            ticketId: req.params.id
-        });
-    } catch (error) {
-        console.error("Error deleting ticket:", error);
-        res.status(500).json({ error: error.message });
-    }
-};
+            try {
+                // Check if user is a facilitator or super admin
+                let userRole = '';
+                let useName = '';
+                
+    
+                const facilitatorRef = doc(db, 'facilitators', req.user.uid);
+                const facilitatorDoc = await getDoc(facilitatorRef);
+                const user = facilitatorDoc.data();
+                
+                if (facilitatorDoc.exists()) {
+                    userRole = user.role ;
+                    useName = user.name || user.fullName;
+                } 
+                
+                
+                if (!facilitatorDoc.exists()) {
+                    return res.status(403).json({ 
+                        error: 'Unauthorized: Only facilitators and super admins can delete tickets' 
+                    });
+                }
+                
+                const ticketRef = doc(db, 'tickets', req.params.id);
+                const ticketDoc = await getDoc(ticketRef);
+                
+                if (!ticketDoc.exists()) {
+                    return res.status(404).json({ error: 'Ticket not found' });
+                }
+                
+                // Delete the ticket
+                await deleteDoc(ticketRef);
+                
+                res.json({
+                    message: `Ticket has been deleted successfully by ${userRole}, ${useName} `,
+                    ticketId: req.params.id
+                });
+            } catch (error) {
+                res.status(500).json({ error: error.message });
+            }
+        };
 
 export const reassignTicket = async (req, res) => {
     try {
