@@ -115,6 +115,92 @@ export const notifyTrainee = async (req, res) => {
   }
 };
 
+// Get all notifications for a specific trainee
+export const getTraineeNotifications = async (req, res) => {
+    try {
+      const { traineeId } = req.params;
+      
+      if (!traineeId) {
+        return res.status(400).json({ msg: 'Please provide trainee ID' });
+      }
+      
+      // Check if trainee exists
+      const traineeDoc = await traineesCollection.doc(traineeId).get();
+      if (!traineeDoc.exists) {
+        return res.status(404).json({ msg: 'Trainee not found' });
+      }
+      
+      // Get notifications for the trainee
+      const notificationsSnapshot = await notificationsCollection
+        .where('traineeId', '==', traineeId)
+        .orderBy('createdAt', 'desc')
+        .get();
+      
+      if (notificationsSnapshot.empty) {
+        return res.json({ notifications: [] });
+      }
+      
+      const notifications = [];
+      notificationsSnapshot.forEach((doc) => {
+        const notificationData = doc.data();
+        notifications.push({
+          id: doc.id,
+          subject: notificationData.subject,
+          message: notificationData.message,
+          createdAt: notificationData.createdAt,
+          sentBy: notificationData.sentByName,
+          isRead: notificationData.isRead,
+          type: notificationData.type || 'general'
+        });
+      });
+      
+      res.json({ notifications });
+    } catch (error) {
+      console.error('Error fetching trainee notifications:', error);
+      res.status(500).json({ msg: 'Server error', error: error.message });
+    }
+  };
+
+  // Mark a notification as read
+export const markNotificationAsRead = async (req, res) => {
+    try {
+      const { notificationId } = req.params;
+      
+      if (!notificationId) {
+        return res.status(400).json({ msg: 'Please provide notification ID' });
+      }
+      
+      // Check if notification exists
+      const notificationRef = notificationsCollection.doc(notificationId);
+      const notificationDoc = await notificationRef.get();
+      
+      if (!notificationDoc.exists) {
+        return res.status(404).json({ msg: 'Notification not found' });
+      }
+      
+      // Verify that the trainee owns this notification
+      const notificationData = notificationDoc.data();
+      if (notificationData.traineeId !== req.user.id) {
+        return res.status(403).json({ msg: 'Not authorized to update this notification' });
+      }
+      
+      // Update the notification to mark as read
+      await notificationRef.update({
+        isRead: true,
+        readAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      
+      res.json({
+        success: true,
+        msg: 'Notification marked as read',
+        notificationId
+      });
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+      res.status(500).json({ msg: 'Server error', error: error.message });
+    }
+  };
+
 // Suspend a trainee
 export const suspendTrainee = async (req, res) => {
     try {

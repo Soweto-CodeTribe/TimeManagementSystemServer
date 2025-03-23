@@ -4,7 +4,9 @@ import {
   getTraineeOverview,
   notifyTrainee,
   suspendTrainee,
-  reinstateTrainee
+  reinstateTrainee,
+  getTraineeNotifications,
+  markNotificationAsRead
 } from '../controllers/notificationController.js';
 
 const router = express.Router();
@@ -36,5 +38,6 @@ router.post('/trainee-actions/suspend', auth, suspendTrainee);
  * @access  Private
  */
 router.post('/trainee-actions/reinstate', auth, reinstateTrainee);
-
+router.get('/notifications/:traineeId', auth, getTraineeNotifications);
+router.put('/notifications/:notificationId/read', auth, markNotificationAsRead);
 export default router;
