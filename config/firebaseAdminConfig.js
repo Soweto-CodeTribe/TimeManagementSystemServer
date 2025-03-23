@@ -48,3 +48,4 @@ const db = admin.firestore();
 
 
 export { admin, db };
+db.settings({ ignoreUndefinedProperties: true });
