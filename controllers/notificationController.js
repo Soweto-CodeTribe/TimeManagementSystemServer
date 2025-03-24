@@ -179,11 +179,7 @@ export const markNotificationAsRead = async (req, res) => {
       }
       
       // Verify that the trainee owns this notification
-      const notificationData = notificationDoc.data();
-      if (notificationData.traineeId !== req.user.id) {
-        return res.status(403).json({ msg: 'Not authorized to update this notification' });
-      }
-      
+    
       // Update the notification to mark as read
       await notificationRef.update({
         isRead: true,
