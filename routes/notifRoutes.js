@@ -6,7 +6,8 @@ import {
   suspendTrainee,
   reinstateTrainee,
   getTraineeNotifications,
-  markNotificationAsRead
+  markNotificationAsRead,
+  getAllNotifications
 } from '../controllers/notificationController.js';
 import verifyToken from '../utilities/index.js';
 
@@ -41,4 +42,5 @@ router.post('/trainee-actions/suspend', auth, suspendTrainee);
 router.post('/trainee-actions/reinstate',auth, reinstateTrainee);
 router.get('/notifications/:traineeId', auth, getTraineeNotifications);
 router.put('/notifications/:notificationId/read', auth, markNotificationAsRead);
+router.get('/notifications', auth, getAllNotifications);
 export default router;

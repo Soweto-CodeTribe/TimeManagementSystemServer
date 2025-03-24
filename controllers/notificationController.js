@@ -115,6 +115,69 @@ export const notifyTrainee = async (req, res) => {
   }
 };
 
+export const getAllNotifications = async (req, res) => {
+  try {
+    // Include pagination parameters
+    const limit = parseInt(req.query.limit) || 50;
+    const lastDoc = req.query.lastDoc;
+    const filterType = req.query.type;
+    
+    let query = notificationsCollection
+      .orderBy('createdAt', 'desc');
+    
+    // Apply type filter if provided
+    if (filterType) {
+      query = query.where('type', '==', filterType);
+    }
+    
+    // Apply pagination if lastDoc is provided
+    if (lastDoc) {
+      const lastDocSnapshot = await notificationsCollection.doc(lastDoc).get();
+      if (!lastDocSnapshot.exists) {
+        return res.status(404).json({ msg: 'Invalid pagination reference' });
+      }
+      query = query.startAfter(lastDocSnapshot);
+    }
+    
+    // Limit the number of results
+    query = query.limit(limit);
+    
+    const notificationsSnapshot = await query.get();
+    
+    if (notificationsSnapshot.empty) {
+      return res.json({ notifications: [], lastDoc: null });
+    }
+    
+    const notifications = [];
+    notificationsSnapshot.forEach((doc) => {
+      const notificationData = doc.data();
+      notifications.push({
+        id: doc.id,
+        traineeId: notificationData.traineeId,
+        traineeName: notificationData.traineeName,
+        subject: notificationData.subject,
+        message: notificationData.message,
+        createdAt: notificationData.createdAt,
+        sentBy: notificationData.sentByName,
+        isRead: notificationData.isRead,
+        type: notificationData.type || 'general'
+      });
+    });
+    
+    // Get the last document for pagination
+    const lastVisible = notificationsSnapshot.docs[notificationsSnapshot.docs.length - 1];
+    
+    res.json({
+      notifications,
+      lastDoc: lastVisible ? lastVisible.id : null,
+      hasMore: notifications.length === limit
+    });
+  } catch (error) {
+    console.error('Error fetching all notifications:', error);
+    res.status(500).json({ msg: 'Server error', error: error.message });
+  }
+};
+
 // Get all notifications for a specific trainee
 export const getTraineeNotifications = async (req, res) => {
     try {
