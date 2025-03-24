@@ -198,16 +198,10 @@ export const deleteNotification = async (req, res) => {
       return res.status(404).json({ msg: 'Notification not found' });
     }
     
-    // Verify that the user has permission to delete this notification
-    // For administrators, you might want to allow deletion of any notification
-    // For trainees, only allow them to delete their own notifications
     const notificationData = notificationDoc.data();
     
-    // Check if user is admin or if the notification belongs to the user
-    if (!req.user.isAdmin && notificationData.traineeId !== req.user.id) {
-      return res.status(403).json({ msg: 'Not authorized to delete this notification' });
-    }
     
+  
     // Delete the notification
     await notificationRef.delete();
     

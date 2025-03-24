@@ -47,14 +47,14 @@ router.post('/trainee-actions/reinstate',auth, reinstateTrainee);
  * @desc    Delete a specific notification
  * @access  Private
  */
-router.delete('/notifications/:notificationId', verifyToken, deleteNotification);
+router.delete('/notifications/:notificationId', auth, deleteNotification);
 
 /**
  * @route   DELETE /api/trainee-notifications/:traineeId
  * @desc    Delete all notifications for a specific trainee
  * @access  Private (restricted to admin or the trainee themselves)
  */
-router.delete('/trainee-notifications/:traineeId', verifyToken, deleteAllTraineeNotifications);
+router.delete('/trainee-notifications/:traineeId', auth, deleteAllTraineeNotifications);
 router.get('/notifications/:traineeId', auth, getTraineeNotifications);
 router.put('/notifications/:notificationId/read', auth, markNotificationAsRead);
 router.get('/notifications', auth, getAllNotifications);
