@@ -178,6 +178,105 @@ export const getAllNotifications = async (req, res) => {
   }
 };
 
+
+// In notificationController.js, add this function:
+
+// Delete a specific notification
+export const deleteNotification = async (req, res) => {
+  try {
+    const { notificationId } = req.params;
+    
+    if (!notificationId) {
+      return res.status(400).json({ msg: 'Please provide notification ID' });
+    }
+    
+    // Check if notification exists
+    const notificationRef = notificationsCollection.doc(notificationId);
+    const notificationDoc = await notificationRef.get();
+    
+    if (!notificationDoc.exists) {
+      return res.status(404).json({ msg: 'Notification not found' });
+    }
+    
+    // Verify that the user has permission to delete this notification
+    // For administrators, you might want to allow deletion of any notification
+    // For trainees, only allow them to delete their own notifications
+    const notificationData = notificationDoc.data();
+    
+    // Check if user is admin or if the notification belongs to the user
+    if (!req.user.isAdmin && notificationData.traineeId !== req.user.id) {
+      return res.status(403).json({ msg: 'Not authorized to delete this notification' });
+    }
+    
+    // Delete the notification
+    await notificationRef.delete();
+    
+    res.json({
+      success: true,
+      msg: 'Notification deleted successfully',
+      notificationId
+    });
+  } catch (error) {
+    console.error('Error deleting notification:', error);
+    res.status(500).json({ msg: 'Server error', error: error.message });
+  }
+};
+
+// Delete all notifications for a specific trainee
+export const deleteAllTraineeNotifications = async (req, res) => {
+  try {
+    const { traineeId } = req.params;
+    
+    if (!traineeId) {
+      return res.status(400).json({ msg: 'Please provide trainee ID' });
+    }
+    
+    // Check if trainee exists
+    const traineeDoc = await traineesCollection.doc(traineeId).get();
+    if (!traineeDoc.exists) {
+      return res.status(404).json({ msg: 'Trainee not found' });
+    }
+    
+    // Verify permissions - only admins or the trainee themselves can delete all their notifications
+    if (!req.user.isAdmin && traineeId !== req.user.id) {
+      return res.status(403).json({ msg: 'Not authorized to delete these notifications' });
+    }
+    
+    // Get all notifications for the trainee
+    const notificationsSnapshot = await notificationsCollection
+      .where('traineeId', '==', traineeId)
+      .get();
+    
+    if (notificationsSnapshot.empty) {
+      return res.json({ 
+        success: true, 
+        msg: 'No notifications found for this trainee',
+        count: 0 
+      });
+    }
+    
+    // Delete notifications in batches (Firestore allows up to 500 operations per batch)
+    const batch = db.batch();
+    let count = 0;
+    
+    notificationsSnapshot.forEach((doc) => {
+      batch.delete(doc.ref);
+      count++;
+    });
+    
+    await batch.commit();
+    
+    res.json({
+      success: true,
+      msg: `Successfully deleted ${count} notifications for trainee`,
+      count
+    });
+  } catch (error) {
+    console.error('Error deleting trainee notifications:', error);
+    res.status(500).json({ msg: 'Server error', error: error.message });
+  }
+};
+
 // Get all notifications for a specific trainee
 export const getTraineeNotifications = async (req, res) => {
     try {

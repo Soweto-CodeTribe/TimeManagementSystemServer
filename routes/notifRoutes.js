@@ -7,7 +7,9 @@ import {
   reinstateTrainee,
   getTraineeNotifications,
   markNotificationAsRead,
-  getAllNotifications
+  getAllNotifications,
+  deleteAllTraineeNotifications,
+  deleteNotification
 } from '../controllers/notificationController.js';
 import verifyToken from '../utilities/index.js';
 
@@ -40,6 +42,19 @@ router.post('/trainee-actions/suspend', auth, suspendTrainee);
  * @access  Private
  */
 router.post('/trainee-actions/reinstate',auth, reinstateTrainee);
+/**
+ * @route   DELETE /api/notifications/:notificationId
+ * @desc    Delete a specific notification
+ * @access  Private
+ */
+router.delete('/notifications/:notificationId', verifyToken, deleteNotification);
+
+/**
+ * @route   DELETE /api/trainee-notifications/:traineeId
+ * @desc    Delete all notifications for a specific trainee
+ * @access  Private (restricted to admin or the trainee themselves)
+ */
+router.delete('/trainee-notifications/:traineeId', verifyToken, deleteAllTraineeNotifications);
 router.get('/notifications/:traineeId', auth, getTraineeNotifications);
 router.put('/notifications/:notificationId/read', auth, markNotificationAsRead);
 router.get('/notifications', auth, getAllNotifications);
