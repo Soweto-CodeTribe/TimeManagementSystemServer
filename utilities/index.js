@@ -102,8 +102,13 @@ import { tokenBlacklist } from './usedTokens.js';
 
 // Generate token that expires in 9 hours
 const generateToken = (userData) => {
-  return jwt.sign(userData, secretKey, { expiresIn: "9h" });
+  if (!userData || typeof userData !== "object") {
+    throw new Error("Invalid payload for token generation");
+  }
+
+  return jwt.sign({ ...userData }, secretKey, { expiresIn: "24h" });
 };
+
 
 // Generate stakeholder token that expires in 24 hours
 export const generateStakeholderToken = (userData) => {
