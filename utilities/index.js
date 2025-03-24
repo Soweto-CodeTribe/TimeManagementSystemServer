@@ -99,14 +99,11 @@
 import jwt from 'jsonwebtoken';
 import secretKey from '../config/jwtConfig.js';
 import { tokenBlacklist } from './usedTokens.js';
+import secreteKey from '../config/jwtConfig.js';
 
 // Generate token that expires in 9 hours
 const generateToken = (userData) => {
-  if (!userData || typeof userData !== "object") {
-    throw new Error("Invalid payload for token generation");
-  }
-
-  return jwt.sign({ ...userData }, secretKey, { expiresIn: "24h" });
+  return jwt.sign(userData, secreteKey, { expiresIn: "9h" });
 };
 
 
