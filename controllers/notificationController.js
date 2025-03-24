@@ -279,49 +279,54 @@ export const deleteAllTraineeNotifications = async (req, res) => {
 
 // Get all notifications for a specific trainee
 export const getTraineeNotifications = async (req, res) => {
-    try {
-      const { traineeId } = req.params;
-      
-      if (!traineeId) {
-        return res.status(400).json({ msg: 'Please provide trainee ID' });
-      }
-      
-      // Check if trainee exists
-      const traineeDoc = await traineesCollection.doc(traineeId).get();
-      if (!traineeDoc.exists) {
-        return res.status(404).json({ msg: 'Trainee not found' });
-      }
-      
-      // Get notifications for the trainee
-      const notificationsSnapshot = await notificationsCollection
-        .where('traineeId', '==', traineeId)
-        .orderBy('createdAt', 'desc')
-        .get();
-      
-      if (notificationsSnapshot.empty) {
-        return res.json({ notifications: [] });
-      }
-      
-      const notifications = [];
-      notificationsSnapshot.forEach((doc) => {
-        const notificationData = doc.data();
-        notifications.push({
-          id: doc.id,
-          subject: notificationData.subject,
-          message: notificationData.message,
-          createdAt: notificationData.createdAt,
-          sentBy: notificationData.sentByName,
-          isRead: notificationData.isRead,
-          type: notificationData.type || 'general'
-        });
-      });
-      
-      res.json({ notifications });
-    } catch (error) {
-      console.error('Error fetching trainee notifications:', error);
-      res.status(500).json({ msg: 'Server error', error: error.message });
+  try {
+    const { traineeId } = req.params;
+    
+    if (!traineeId) {
+      return res.status(400).json({ msg: 'Please provide trainee ID' });
     }
-  };
+    
+    // Check if trainee exists
+    const traineeDoc = await traineesCollection.doc(traineeId).get();
+    if (!traineeDoc.exists) {
+      return res.status(404).json({ msg: 'Trainee not found' });
+    }
+    
+    // Get notifications for the trainee
+    const notificationsSnapshot = await notificationsCollection
+      .where('traineeId', '==', traineeId)
+      .orderBy('createdAt', 'desc')
+      .get();
+    
+    if (notificationsSnapshot.empty) {
+      return res.json({ notifications: [] });
+    }
+    
+    const notifications = [];
+    notificationsSnapshot.forEach((doc) => {
+      const notificationData = doc.data();
+      // Convert Firestore timestamp to ISO string
+      const createdAt = notificationData.createdAt 
+        ? notificationData.createdAt.toDate().toISOString() 
+        : new Date().toISOString();
+      
+      notifications.push({
+        id: doc.id,
+        subject: notificationData.subject,
+        message: notificationData.message,
+        createdAt: createdAt,
+        sentBy: notificationData.sentByName,
+        isRead: notificationData.isRead,
+        type: notificationData.type || 'general'
+      });
+    });
+    
+    res.json({ notifications });
+  } catch (error) {
+    console.error('Error fetching trainee notifications:', error);
+    res.status(500).json({ msg: 'Server error', error: error.message });
+  }
+};
 
   // Mark a notification as read
 export const markNotificationAsRead = async (req, res) => {
