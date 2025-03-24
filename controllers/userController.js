@@ -324,7 +324,7 @@ export const create_user = async (req, res) => {
       ...(postalCode && { postalCode }),
       ...(messages && { messages }),
       ...(notifications && { notifications }),
-      twoFactorEnabled: true, // Set two-factor authentication to enabled by default
+      twoFactorEnabled: false, // Set two-factor authentication to enabled by default
       createdAt: serverTimestamp(),
     };
 
