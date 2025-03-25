@@ -90,8 +90,11 @@ const checkTime = (checkInTime) => {
   }
 };
 
-const getTodayReportDoc = async (traineeId) => {
-  const today = new Date().toISOString().split("T")[0];
+const getTodayReportDoc = async (traineeId, date = new Date()) => {
+  const targetDate = date instanceof Date 
+    ? date.toISOString().split("T")[0] 
+    : new Date(date).toISOString().split("T")[0];
+  
   const reportRef = doc(db, `reports/${traineeId}`);
   const reportDoc = await getDoc(reportRef);
 
@@ -100,7 +103,7 @@ const getTodayReportDoc = async (traineeId) => {
     await setDoc(reportRef, {}, { merge: true });
   }
 
-  return { ref: reportRef, today };
+  return { ref: reportRef, today: targetDate };
 };
 
 export const standardizeTimeFormat = (timeStr) => {
@@ -139,10 +142,15 @@ export const standardizeTimeFormat = (timeStr) => {
     "0"
   )}`;
 };
-
 export const checkIn = async (req, res) => {
   try {
-    const { traineeId, name, checkInTime, location } = req.body;
+    const { 
+      traineeId, 
+      name, 
+      checkInTime, 
+      location, 
+      date = new Date() 
+    } = req.body;
 
     if (!traineeId || !name || !checkInTime || !location) {
       return res.status(400).json({ error: "Missing required fields" });
@@ -155,22 +163,24 @@ export const checkIn = async (req, res) => {
     const timeStatus = checkTime(standardizedCheckInTime);
     
     const timestamp = Date.now();
-    const today = new Date().toISOString().split("T")[0];
+    const targetDate = date instanceof Date 
+      ? date.toISOString().split("T")[0] 
+      : new Date(date).toISOString().split("T")[0];
 
-    // Check if today is a working day
-    const workingDay = await isWorkingDay(today);
+    // Check if target date is a working day
+    const workingDay = await isWorkingDay(targetDate);
     if (!workingDay) {
       return res.status(200).json({
-        message: "Check-in recorded, but today is not a working day",
+        message: "Check-in recorded, but this is not a working day",
         isWorkingDay: false,
       });
     }
 
-    // Check if trainee already has a record for today in RTDB
+    // Check if trainee already has a record for the target date in RTDB
     const rtdbSnapshot = await get(ref(rtdb, `liveTracking/${traineeId}`));
     const rtdbData = rtdbSnapshot.val();
 
-    if (rtdbData && rtdbData.currentDate === today) {
+    if (rtdbData && rtdbData.currentDate === targetDate) {
       return res.status(200).json({
         message: `${rtdbData.name} you have already checked in at ${rtdbData.checkInTime}`,
         checkInTime: rtdbData.checkInTime,
@@ -184,13 +194,11 @@ export const checkIn = async (req, res) => {
       location: location || "Unknown",
       lunchStatus: "Working",
       lastUpdated: timestamp,
-      currentDate: today,
+      currentDate: targetDate,
     });
 
-    // Create or update today's report in Firestore
-    const { ref: reportRef, today: reportDate } = await getTodayReportDoc(
-      traineeId
-    );
+    // Create or update report in Firestore
+    const { ref: reportRef } = await getTodayReportDoc(traineeId, targetDate);
 
     // Ensure we have a valid status before saving to Firestore
     if (!timeStatus) {
@@ -200,8 +208,8 @@ export const checkIn = async (req, res) => {
     await setDoc(
       reportRef,
       {
-        [today]: {
-          date: today,
+        [targetDate]: {
+          date: targetDate,
           checkInTime: standardizedCheckInTime,
           location: location || "Unknown",
           totalHoursWorked: 0,
@@ -219,6 +227,7 @@ export const checkIn = async (req, res) => {
       checkInTime: standardizedCheckInTime,
       timeStatus,
       isWorkingDay: true,
+      date: targetDate,
     });
   } catch (error) {
     console.error("Check-in error:", error);
@@ -228,9 +237,17 @@ export const checkIn = async (req, res) => {
 
 export const lunchStart = async (req, res) => {
   try {
-    const { traineeId, lunchStartTime } = req.body;
+    const { 
+      traineeId, 
+      lunchStartTime, 
+      date = new Date() 
+    } = req.body;
 
     const standardizedLunchStartTime = standardizeTimeFormat(lunchStartTime);
+
+    const targetDate = date instanceof Date 
+      ? date.toISOString().split("T")[0] 
+      : new Date(date).toISOString().split("T")[0];
 
     const rtdbSnapshot = await get(ref(rtdb, `liveTracking/${traineeId}`));
     const rtdbData = rtdbSnapshot.val();
@@ -251,12 +268,13 @@ export const lunchStart = async (req, res) => {
       lunchStatus: "At Lunch",
       lunchStartTime: standardizedLunchStartTime,
       lastUpdated: Date.now(),
+      currentDate: targetDate,
     });
 
-    // Update today's report in Firestore
-    const { ref: reportRef, today } = await getTodayReportDoc(traineeId);
+    // Update report in Firestore
+    const { ref: reportRef } = await getTodayReportDoc(traineeId, targetDate);
     await updateDoc(reportRef, {
-      [`${today}.lunchStartTime`]: standardizedLunchStartTime,
+      [`${targetDate}.lunchStartTime`]: standardizedLunchStartTime,
     });
 
     if (rtdbData?.checkInTime) {
@@ -278,6 +296,7 @@ export const lunchStart = async (req, res) => {
     res.status(200).json({
       message: "Lunch start recorded",
       lunchStartTime: standardizedLunchStartTime,
+      date: targetDate,
     });
   } catch (error) {
     console.error("Lunch start error:", error);
@@ -287,9 +306,17 @@ export const lunchStart = async (req, res) => {
 
 export const lunchEnd = async (req, res) => {
   try {
-    const { traineeId, lunchEndTime } = req.body;
+    const { 
+      traineeId, 
+      lunchEndTime, 
+      date = new Date() 
+    } = req.body;
 
     const standardizedLunchEndTime = standardizeTimeFormat(lunchEndTime);
+
+    const targetDate = date instanceof Date 
+      ? date.toISOString().split("T")[0] 
+      : new Date(date).toISOString().split("T")[0];
 
     const rtdbSnapshot = await get(ref(rtdb, `liveTracking/${traineeId}`));
     const rtdbData = rtdbSnapshot.val();
@@ -328,19 +355,20 @@ export const lunchEnd = async (req, res) => {
       lunchEndTime: standardizedLunchEndTime,
       lastUpdated: Date.now(),
       totalLunchMinutes: currentTotalLunch,
+      currentDate: targetDate,
     });
 
-    // Update today's report in Firestore
-    const { ref: reportRef, today } = await getTodayReportDoc(traineeId);
+    // Update report in Firestore
+    const { ref: reportRef } = await getTodayReportDoc(traineeId, targetDate);
 
     // Get current total lunch minutes from Firestore
     const reportDoc = await getDoc(reportRef);
-    const todayData = reportDoc.data()?.[today] || {};
+    const todayData = reportDoc.data()?.[targetDate] || {};
     const previousLunchMinutes = todayData.totalLunchMinutes || 0;
 
     await updateDoc(reportRef, {
-      [`${today}.lunchEndTime`]: standardizedLunchEndTime,
-      [`${today}.totalLunchMinutes`]:
+      [`${targetDate}.lunchEndTime`]: standardizedLunchEndTime,
+      [`${targetDate}.totalLunchMinutes`]:
         previousLunchMinutes + lunchDurationMinutes,
     });
 
@@ -367,6 +395,7 @@ export const lunchEnd = async (req, res) => {
       lunchEndTime: standardizedLunchEndTime,
       lunchDurationMinutes,
       totalLunchMinutes: currentTotalLunch,
+      date: targetDate,
     });
   } catch (error) {
     console.error("Lunch end error:", error);
@@ -376,13 +405,21 @@ export const lunchEnd = async (req, res) => {
 
 export const checkOut = async (req, res) => {
   try {
-    const { traineeId, checkOutTime } = req.body;
+    const { 
+      traineeId, 
+      checkOutTime, 
+      date = new Date() 
+    } = req.body;
 
     if (!traineeId || !checkOutTime) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
     const standardizedCheckOutTime = standardizeTimeFormat(checkOutTime);
+
+    const targetDate = date instanceof Date 
+      ? date.toISOString().split("T")[0] 
+      : new Date(date).toISOString().split("T")[0];
 
     // Get current data from Realtime Database
     const rtdbSnapshot = await get(ref(rtdb, `liveTracking/${traineeId}`));
@@ -422,10 +459,10 @@ export const checkOut = async (req, res) => {
       totalMinutes += 24 * 60; // Add 24 hours worth of minutes
     }
 
-    // Get today's report document
-    const { ref: reportRef, today } = await getTodayReportDoc(traineeId);
+    // Get report document
+    const { ref: reportRef } = await getTodayReportDoc(traineeId, targetDate);
     const reportDoc = await getDoc(reportRef);
-    const todayData = reportDoc.data()?.[today] || {};
+    const todayData = reportDoc.data()?.[targetDate] || {};
 
     // Ensure totalLunchMinutes is a valid number
     const totalLunchMinutes = Number(
@@ -440,9 +477,9 @@ export const checkOut = async (req, res) => {
 
     // Update Firestore report
     await updateDoc(reportRef, {
-      [`${today}.checkOutTime`]: standardizedCheckOutTime,
-      [`${today}.totalHoursWorked`]: parseFloat(totalHours),
-      [`${today}.totalLunchMinutes`]: totalLunchMinutes,
+      [`${targetDate}.checkOutTime`]: standardizedCheckOutTime,
+      [`${targetDate}.totalHoursWorked`]: parseFloat(totalHours),
+      [`${targetDate}.totalLunchMinutes`]: totalLunchMinutes,
     });
 
     // Remove from Realtime Database
@@ -453,6 +490,7 @@ export const checkOut = async (req, res) => {
       checkOutTime: standardizedCheckOutTime,
       totalHoursWorked: totalHours,
       totalLunchMinutes,
+      date: targetDate,
     });
   } catch (error) {
     console.error("Check-out error:", error.message);
