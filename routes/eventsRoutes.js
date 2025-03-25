@@ -24,7 +24,7 @@ router.route("/event/check-in").patch(guestCheckIn).post(guestCheckIn);
 router.post("/check-email", checkEmail);
 router.get("/getGuests", verifyToken, getGuests);
 router.post("/events/close", closeEvent);
-router.get("/event/event-QR", getEventQRcode);
+router.get("/event-QR", getEventQRcode);
 
 // Stakeholder read-only routes
 router.get("/event/:eventId", completeStakeholderAccess, getEvent);
