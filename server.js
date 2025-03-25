@@ -146,7 +146,7 @@ io.on('connection', (socket) => {
 
 // Scheduled tasks
 scheduleQRCodeGeneration();
-// scheduleAutoCheckOut();
+scheduleAutoCheckOut();
 // autoCheckOutTrainees();
 
 // Routes

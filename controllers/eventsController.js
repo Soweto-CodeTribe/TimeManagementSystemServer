@@ -90,11 +90,11 @@ export const guestCheckIn = async (req, res) => {
     if (guestInfo.eventId) {
       const eventRef = doc(db, "events", guestInfo.eventId);
       const eventDoc = await getDoc(eventRef);
-      
+
       if (eventDoc.exists() && eventDoc.data().status === "closed") {
         return res.status(403).json({
           message: "Cannot check in - this event is closed",
-          eventId: guestInfo.eventId
+          eventId: guestInfo.eventId,
         });
       }
     }
@@ -256,7 +256,7 @@ export const getGuests = async (req, res) => {
   }
 };
 
- export const closeEvent = async (req, res) => {
+export const closeEvent = async (req, res) => {
   try {
     const { eventId } = req.body;
 
