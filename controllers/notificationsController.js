@@ -131,9 +131,9 @@ export const create_Message = async (req, res) => {
     const newDoc = await db.collection("messages").doc(newMessageId.toString()).get();
     const savedMessage = { id: newMessageId, ...newDoc.data(), createdAt: formatTimestamp(newDoc.data().createdAt) };
 
-    if (savedMessage.createdAt) {
-      savedMessage.createdAt = savedMessage.createdAt.toDate().toISOString();
-    }
+    // if (savedMessage.createdAt) {
+    //   savedMessage.createdAt = savedMessage.createdAt.toDate().toISOString();
+    // }
 
     res.status(201).json(savedMessage);
   } catch (error) {
