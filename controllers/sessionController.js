@@ -25,6 +25,16 @@ export const formatTime = () => {
   });
 };
 
+const isToday = (date) => {
+  const inputDate = date instanceof Date 
+    ? date.toISOString().split("T")[0] 
+    : new Date(date).toISOString().split("T")[0];
+  
+  const today = new Date().toISOString().split("T")[0];
+  
+  return inputDate === today;
+};
+
 export const formatDate = () => {
   return new Date().toLocaleDateString("en-ZA", {
     timeZone: "Africa/Johannesburg",
@@ -142,6 +152,8 @@ export const standardizeTimeFormat = (timeStr) => {
     "0"
   )}`;
 };
+
+
 export const checkIn = async (req, res) => {
   try {
     const { 
@@ -176,27 +188,6 @@ export const checkIn = async (req, res) => {
       });
     }
 
-    // Check if trainee already has a record for the target date in RTDB
-    const rtdbSnapshot = await get(ref(rtdb, `liveTracking/${traineeId}`));
-    const rtdbData = rtdbSnapshot.val();
-
-    if (rtdbData && rtdbData.currentDate === targetDate) {
-      return res.status(200).json({
-        message: `${rtdbData.name} you have already checked in at ${rtdbData.checkInTime}`,
-        checkInTime: rtdbData.checkInTime,
-      });
-    }
-
-    // Update Realtime Database
-    await set(ref(rtdb, `liveTracking/${traineeId}`), {
-      name,
-      checkInTime: standardizedCheckInTime,
-      location: location || "Unknown",
-      lunchStatus: "Working",
-      lastUpdated: timestamp,
-      currentDate: targetDate,
-    });
-
     // Create or update report in Firestore
     const { ref: reportRef } = await getTodayReportDoc(traineeId, targetDate);
 
@@ -222,8 +213,41 @@ export const checkIn = async (req, res) => {
       { merge: true }
     );
 
-    res.status(200).json({
-      message: "Check-in successful",
+    // Only update RTDB if it's today's date
+    if (isToday(date)) {
+      // Check if trainee already has a record for the target date in RTDB
+      const rtdbSnapshot = await get(ref(rtdb, `liveTracking/${traineeId}`));
+      const rtdbData = rtdbSnapshot.val();
+
+      if (rtdbData && rtdbData.currentDate === targetDate) {
+        return res.status(200).json({
+          message: `${rtdbData.name} you have already checked in at ${rtdbData.checkInTime}`,
+          checkInTime: rtdbData.checkInTime,
+        });
+      }
+
+      // Update Realtime Database
+      await set(ref(rtdb, `liveTracking/${traineeId}`), {
+        name,
+        checkInTime: standardizedCheckInTime,
+        location: location || "Unknown",
+        lunchStatus: "Working",
+        lastUpdated: timestamp,
+        currentDate: targetDate,
+      });
+
+      return res.status(200).json({
+        message: "Check-in successful",
+        checkInTime: standardizedCheckInTime,
+        timeStatus,
+        isWorkingDay: true,
+        date: targetDate,
+      });
+    }
+
+    // For past dates, only record in Firestore
+    return res.status(200).json({
+      message: "Check-in recorded for a past date",
       checkInTime: standardizedCheckInTime,
       timeStatus,
       isWorkingDay: true,
@@ -249,48 +273,51 @@ export const lunchStart = async (req, res) => {
       ? date.toISOString().split("T")[0] 
       : new Date(date).toISOString().split("T")[0];
 
-    const rtdbSnapshot = await get(ref(rtdb, `liveTracking/${traineeId}`));
-    const rtdbData = rtdbSnapshot.val();
-
-    if (rtdbData && rtdbData.lunchStartTime) {
-      return res.status(200).json({
-        message: `${rtdbData.name} you have already went to lunch at ${rtdbData.lunchStartTime}`,
-        checkInTime: rtdbData.checkInTime,
-      });
-    }
-
     if (!traineeId || !standardizedLunchStartTime) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    // Update Realtime Database
-    await update(ref(rtdb, `liveTracking/${traineeId}`), {
-      lunchStatus: "At Lunch",
-      lunchStartTime: standardizedLunchStartTime,
-      lastUpdated: Date.now(),
-      currentDate: targetDate,
-    });
-
-    // Update report in Firestore
+    // Always update Firestore
     const { ref: reportRef } = await getTodayReportDoc(traineeId, targetDate);
     await updateDoc(reportRef, {
       [`${targetDate}.lunchStartTime`]: standardizedLunchStartTime,
     });
 
-    if (rtdbData?.checkInTime) {
-      // Ensure check-in time is in 24-hour format
-      const checkInTime24 = standardizeTimeFormat(rtdbData.checkInTime);
+    // Only interact with RTDB if it's today's date
+    if (isToday(date)) {
+      const rtdbSnapshot = await get(ref(rtdb, `liveTracking/${traineeId}`));
+      const rtdbData = rtdbSnapshot.val();
 
-      const checkInTime = new Date(`2000/01/01 ${checkInTime24}`);
-      const lunchStart = new Date(`2000/01/01 ${standardizedLunchStartTime}`);
-      const minutesWorkedBeforeLunch = Math.round(
-        (lunchStart - checkInTime) / (1000 * 60)
-      );
+      if (rtdbData && rtdbData.lunchStartTime) {
+        return res.status(200).json({
+          message: `${rtdbData.name} you have already went to lunch at ${rtdbData.lunchStartTime}`,
+          checkInTime: rtdbData.checkInTime,
+        });
+      }
 
-      // Update real-time hours worked
+      // Update Realtime Database
       await update(ref(rtdb, `liveTracking/${traineeId}`), {
-        currentHoursWorked: (minutesWorkedBeforeLunch / 60).toFixed(2),
+        lunchStatus: "At Lunch",
+        lunchStartTime: standardizedLunchStartTime,
+        lastUpdated: Date.now(),
+        currentDate: targetDate,
       });
+
+      if (rtdbData?.checkInTime) {
+        // Ensure check-in time is in 24-hour format
+        const checkInTime24 = standardizeTimeFormat(rtdbData.checkInTime);
+
+        const checkInTime = new Date(`2000/01/01 ${checkInTime24}`);
+        const lunchStart = new Date(`2000/01/01 ${standardizedLunchStartTime}`);
+        const minutesWorkedBeforeLunch = Math.round(
+          (lunchStart - checkInTime) / (1000 * 60)
+        );
+
+        // Update real-time hours worked
+        await update(ref(rtdb, `liveTracking/${traineeId}`), {
+          currentHoursWorked: (minutesWorkedBeforeLunch / 60).toFixed(2),
+        });
+      }
     }
 
     res.status(200).json({
@@ -318,25 +345,24 @@ export const lunchEnd = async (req, res) => {
       ? date.toISOString().split("T")[0] 
       : new Date(date).toISOString().split("T")[0];
 
-    const rtdbSnapshot = await get(ref(rtdb, `liveTracking/${traineeId}`));
-    const rtdbData = rtdbSnapshot.val();
-
-    if (rtdbData && rtdbData.lunchEndTime) {
-      return res.status(200).json({
-        message: `${rtdbData.name} you have already went to lunch and came back at ${rtdbData.lunchEndTime}`,
-        checkInTime: rtdbData.checkInTime,
-      });
-    }
-
     if (!traineeId || !standardizedLunchEndTime) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    if (!rtdbData?.lunchStartTime) {
-      throw new Error("No lunch start time found");
+    // Always update Firestore
+    const { ref: reportRef } = await getTodayReportDoc(traineeId, targetDate);
+    const reportDoc = await getDoc(reportRef);
+    const todayData = reportDoc.data()?.[targetDate] || {};
+
+    // Get report document and existing lunch start time from Firestore
+    const previousLunchMinutes = todayData.totalLunchMinutes || 0;
+    const previousLunchStartTime = todayData.lunchStartTime;
+
+    if (!previousLunchStartTime) {
+      throw new Error("No lunch start time found in records");
     }
 
-    const lunchStartTime24 = standardizeTimeFormat(rtdbData.lunchStartTime);
+    const lunchStartTime24 = standardizeTimeFormat(previousLunchStartTime);
 
     // Calculate lunch duration in minutes
     const lunchStart = new Date(`2000/01/01 ${lunchStartTime24}`);
@@ -345,56 +371,66 @@ export const lunchEnd = async (req, res) => {
       (lunchEnd - lunchStart) / (1000 * 60)
     );
 
-    // Update current total lunch minutes
-    const currentTotalLunch =
-      (rtdbData.totalLunchMinutes || 0) + lunchDurationMinutes;
-
-    // Update Realtime Database
-    await update(ref(rtdb, `liveTracking/${traineeId}`), {
-      lunchStatus: "Working",
-      lunchEndTime: standardizedLunchEndTime,
-      lastUpdated: Date.now(),
-      totalLunchMinutes: currentTotalLunch,
-      currentDate: targetDate,
-    });
-
-    // Update report in Firestore
-    const { ref: reportRef } = await getTodayReportDoc(traineeId, targetDate);
-
-    // Get current total lunch minutes from Firestore
-    const reportDoc = await getDoc(reportRef);
-    const todayData = reportDoc.data()?.[targetDate] || {};
-    const previousLunchMinutes = todayData.totalLunchMinutes || 0;
-
+    // Update Firestore report
     await updateDoc(reportRef, {
       [`${targetDate}.lunchEndTime`]: standardizedLunchEndTime,
       [`${targetDate}.totalLunchMinutes`]:
         previousLunchMinutes + lunchDurationMinutes,
     });
 
-    // Calculate and update real-time hours worked
-    if (rtdbData?.checkInTime) {
-      // Ensure check-in time is in 24-hour format
-      const checkInTime24 = standardizeTimeFormat(rtdbData.checkInTime);
+    // Only interact with RTDB if it's today's date
+    if (isToday(date)) {
+      const rtdbSnapshot = await get(ref(rtdb, `liveTracking/${traineeId}`));
+      const rtdbData = rtdbSnapshot.val();
 
-      const checkInTime = new Date(`2000/01/01 ${checkInTime24}`);
-      const now = new Date(`2000/01/01 ${standardizedLunchEndTime}`);
-      const totalMinutesElapsed = Math.round((now - checkInTime) / (1000 * 60));
-      const hoursWorked = (
-        (totalMinutesElapsed - currentTotalLunch) /
-        60
-      ).toFixed(2);
+      if (rtdbData && rtdbData.lunchEndTime) {
+        return res.status(200).json({
+          message: `${rtdbData.name} you have already went to lunch and came back at ${rtdbData.lunchEndTime}`,
+          checkInTime: rtdbData.checkInTime,
+        });
+      }
 
+      if (!rtdbData?.lunchStartTime) {
+        throw new Error("No lunch start time found in real-time database");
+      }
+
+      // Calculate current total lunch minutes
+      const currentTotalLunch =
+        (rtdbData.totalLunchMinutes || 0) + lunchDurationMinutes;
+
+      // Update Realtime Database
       await update(ref(rtdb, `liveTracking/${traineeId}`), {
-        currentHoursWorked: hoursWorked,
+        lunchStatus: "Working",
+        lunchEndTime: standardizedLunchEndTime,
+        lastUpdated: Date.now(),
+        totalLunchMinutes: currentTotalLunch,
+        currentDate: targetDate,
       });
+
+      // Calculate and update real-time hours worked
+      if (rtdbData?.checkInTime) {
+        // Ensure check-in time is in 24-hour format
+        const checkInTime24 = standardizeTimeFormat(rtdbData.checkInTime);
+
+        const checkInTime = new Date(`2000/01/01 ${checkInTime24}`);
+        const now = new Date(`2000/01/01 ${standardizedLunchEndTime}`);
+        const totalMinutesElapsed = Math.round((now - checkInTime) / (1000 * 60));
+        const hoursWorked = (
+          (totalMinutesElapsed - currentTotalLunch) /
+          60
+        ).toFixed(2);
+
+        await update(ref(rtdb, `liveTracking/${traineeId}`), {
+          currentHoursWorked: hoursWorked,
+        });
+      }
     }
 
     res.status(200).json({
       message: "Lunch end recorded",
       lunchEndTime: standardizedLunchEndTime,
       lunchDurationMinutes,
-      totalLunchMinutes: currentTotalLunch,
+      totalLunchMinutes: previousLunchMinutes + lunchDurationMinutes,
       date: targetDate,
     });
   } catch (error) {
@@ -421,15 +457,17 @@ export const checkOut = async (req, res) => {
       ? date.toISOString().split("T")[0] 
       : new Date(date).toISOString().split("T")[0];
 
-    // Get current data from Realtime Database
-    const rtdbSnapshot = await get(ref(rtdb, `liveTracking/${traineeId}`));
-    const rtdbData = rtdbSnapshot.val();
+    // Get report document
+    const { ref: reportRef } = await getTodayReportDoc(traineeId, targetDate);
+    const reportDoc = await getDoc(reportRef);
+    const todayData = reportDoc.data()?.[targetDate] || {};
 
-    if (!rtdbData?.checkInTime) {
-      throw new Error("No check-in time found");
+    // Get check-in time from Firestore
+    const checkInTime24 = standardizeTimeFormat(todayData.checkInTime);
+
+    if (!checkInTime24) {
+      throw new Error("No check-in time found in records");
     }
-
-    const checkInTime24 = standardizeTimeFormat(rtdbData.checkInTime);
 
     // Parse check-in and check-out times
     const [checkInHours, checkInMinutes] = checkInTime24.split(":").map(Number);
@@ -459,14 +497,9 @@ export const checkOut = async (req, res) => {
       totalMinutes += 24 * 60; // Add 24 hours worth of minutes
     }
 
-    // Get report document
-    const { ref: reportRef } = await getTodayReportDoc(traineeId, targetDate);
-    const reportDoc = await getDoc(reportRef);
-    const todayData = reportDoc.data()?.[targetDate] || {};
-
     // Ensure totalLunchMinutes is a valid number
     const totalLunchMinutes = Number(
-      rtdbData.totalLunchMinutes || todayData.totalLunchMinutes || 0
+      todayData.totalLunchMinutes || 0
     );
 
     // Ensure subtraction doesn't cause NaN issues
@@ -475,15 +508,18 @@ export const checkOut = async (req, res) => {
       throw new Error("Invalid total hours calculation");
     }
 
-    // Update Firestore report
+    // Always update Firestore report
     await updateDoc(reportRef, {
       [`${targetDate}.checkOutTime`]: standardizedCheckOutTime,
       [`${targetDate}.totalHoursWorked`]: parseFloat(totalHours),
       [`${targetDate}.totalLunchMinutes`]: totalLunchMinutes,
     });
 
-    // Remove from Realtime Database
-    await set(ref(rtdb, `liveTracking/${traineeId}`), null);
+    // Only interact with RTDB if it's today's date
+    if (isToday(date)) {
+      // Remove from Realtime Database
+      await set(ref(rtdb, `liveTracking/${traineeId}`), null);
+    }
 
     res.status(200).json({
       message: "Check-out successful",
