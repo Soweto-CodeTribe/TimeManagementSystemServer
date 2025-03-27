@@ -5,7 +5,7 @@ import "dotenv/config";
 import facilitatorRoutes from "./routes/facilitatoRoutes.js";
 import authRoutes from "./routes/index.js";
 import authCheck from "./routes/authCheck.js";
-import csvRoutes from "./routes/csvRoutes.js"
+import csvRoutes from "./routes/csvRoutes.js";
 import meetingRoutes from "./routes/meetingRoutes.js";
 import sessionRoutes from "./routes/sessionRoutes.js";
 import messageRoutes from "./routes/notificationRoutes.js";
@@ -13,13 +13,18 @@ import geofencingRoutes from "./routes/geofencingRoutes.js";
 import qrCodeRoutes from "./routes/qrCodeRoutes.js";
 import ticketRoutes from "./routes/ticketsRoutes.js";
 import eventsRoutes from "./routes/eventsRoutes.js";
-import stakeholderRoutes from './routes/stakeholderRoutes.js';
+import stakeholderRoutes from "./routes/stakeholderRoutes.js";
 import { scheduleQRCodeGeneration } from "./controllers/qrCodeController.js";
 import superAdminRoutes from "./routes/superAdminRoutes.js";
 import facilitatorReport from "./routes/facilitatorReportRoutes.js";
-import { autoCheckOutTrainees, scheduleAutoCheckOut, standardizeTimeFormat } from "./controllers/sessionController.js";
+import {
+  autoCheckOutTrainees,
+  scheduleAutoCheckOut,
+  standardizeTimeFormat,
+} from "./controllers/sessionController.js";
 import { cleanupVerificationCodes } from "./controllers/authController.js";
 import absenteeismRoutes from "./routes/absenteeismRoutes.js";
+import { fetchAndConvertExternalTrainees } from "./controllers/onBoardingOnlineCohort.js";
 const PORT = process.env.PORT;
 const app = express();
 
@@ -33,13 +38,15 @@ scheduleQRCodeGeneration();
 // const timeTest = standardizeTimeFormat("07:23 pm")
 // console.log("converter time: ",timeTest)
 
+ fetchAndConvertExternalTrainees();
+
 //function to auto check out trainees
 // autoCheckOutTrainees()
 
 app.use("/api/auth/", authRoutes);
 app.use("/api/add-user/", authCheck);
 app.use("/api/facilitators", facilitatorRoutes);
-app.use("/api/csv", csvRoutes)
+app.use("/api/csv", csvRoutes);
 app.use("/api/", authCheck);
 app.use("/api/", meetingRoutes);
 app.use("/api/session", sessionRoutes);
@@ -54,15 +61,16 @@ app.use("/api/", facilitatorReport);
 app.use("/api/", absenteeismRoutes);
 app.all("*", (req, res) => res.send("error 404 page not found"));
 
-
 // Run cleanup
 cleanupVerificationCodes()
-  .then(result => {
+  .then((result) => {
     if (result.success) {
-      console.log(`Startup cleanup: removed ${result.deletedCount} old verification codes`);
+      console.log(
+        `Startup cleanup: removed ${result.deletedCount} old verification codes`
+      );
     }
   })
-  .catch(err => console.error("Startup cleanup failed:", err));
+  .catch((err) => console.error("Startup cleanup failed:", err));
 
 app.listen(PORT, () =>
   console.log(
