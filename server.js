@@ -146,17 +146,12 @@ io.on('connection', (socket) => {
 
 // Scheduled tasks
 scheduleQRCodeGeneration();
-// scheduleAutoCheckOut()
-// const timeTest = standardizeTimeFormat("07:23 pm")
-// console.log("converter time: ",timeTest)
-
-// addExternalTrainees()
-//function to auto check out trainees
-// autoCheckOutTrainees()
 scheduleAutoCheckOut();
 // autoCheckOutTrainees();
 
-// Routes
+//function to auto check out trainees
+// autoCheckOutTrainees()
+
 app.use("/api/auth/", authRoutes);
 app.use("/api/add-user/", authCheck);
 app.use("/api/facilitators", facilitatorRoutes);
@@ -194,10 +189,8 @@ cleanupVerificationCodes()
   })
   .catch((err) => console.error("Startup cleanup failed:", err));
 
-// Start server
-server.listen(PORT, () => 
-  console.log(`Server connected and running on ${PORT}, http://localhost:${PORT}`)
+app.listen(PORT, () =>
+  console.log(
+    `server connected and running on ${PORT}, http://localhost:${PORT}`
+  )
 );
-
-// Export io for external use if needed
-export { io };

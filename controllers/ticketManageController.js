@@ -204,8 +204,87 @@ import {
     deleteDoc,
     query, 
     where, 
-    orderBy
+    orderBy, 
+    limit
 } from 'firebase/firestore';
+
+// export const getAllTickets = async (req, res) => {
+//     try {
+//         // Check if user is a facilitator
+//         const facilitatorRef = doc(db, 'facilitators', req.user.uid);
+//         const facilitatorDoc = await getDoc(facilitatorRef);
+
+//         if (!facilitatorDoc.exists()) {
+//             return res.status(403).json({ error: 'Unauthorized: Not a facilitator' });
+//         }
+
+//         // Build query constraints
+//         const constraints = [];
+//         if (req.query.status) constraints.push(where('status', '==', req.query.status));
+//         if (req.query.priority) constraints.push(where('priority', '==', req.query.priority));
+//         if (req.query.category) constraints.push(where('category', '==', req.query.category));
+//         if (req.query.traineeId) constraints.push(where('traineeId', '==', req.query.traineeId));
+        
+//         // Handle assignment filtering
+//         if (req.query.assigned === 'true') {
+//             constraints.push(where('assignedTo', '==', req.user.uid));
+//         } else if (req.query.assigned === 'false') {
+//             constraints.push(where('assignedTo', '==', null));
+//         }
+        
+//         constraints.push(orderBy('updatedAt', 'desc'));
+
+//         // Get tickets
+//         const ticketsRef = collection(db, 'tickets');
+//         const q = query(ticketsRef, ...constraints);
+//         const ticketDocs = await getDocs(q);
+
+//         const tickets = await Promise.all(ticketDocs.docs.map(async (ticketDoc) => {
+//             const ticket = { id: ticketDoc.id, ...ticketDoc.data() };
+
+//             // Fetch trainee details
+//             if (ticket.traineeId) {
+//                 try {
+//                     const traineeRef = doc(db, 'trainees', ticket.traineeId);
+//                     const traineeDoc = await getDoc(traineeRef);
+//                     if (traineeDoc.exists()) {
+//                         ticket.traineeDetails = {
+//                             name: traineeDoc.data().name || traineeDoc.data().fullName || null,
+//                             surname: traineeDoc.data().surname || null,
+//                             email: traineeDoc.data().email || null
+//                         };
+//                     }
+//                 } catch (error) {
+//                     console.error("Error fetching trainee details:", error);
+//                 }
+//             }
+
+//             // Fetch assignee details
+//             if (ticket.assignedTo) {
+//                 try {
+//                     const assigneeRef = doc(db, 'facilitators', ticket.assignedTo);
+//                     const assigneeDoc = await getDoc(assigneeRef);
+//                     if (assigneeDoc.exists()) {
+//                         ticket.assigneeDetails = {
+//                             name: assigneeDoc.data().name || assigneeDoc.data().fullName || null,
+//                             email: assigneeDoc.data().email || null
+//                         };
+//                     }
+//                 } catch (error) {
+//                     console.error("Error fetching assignee details:", error);
+//                 }
+//             }
+
+//             return ticket;
+//         }));
+
+//         res.json(tickets);
+//     } catch (error) {
+//         console.error("Error fetching tickets:", error);
+//         res.status(500).json({ error: error.message });
+//     }
+// };
+
 
 export const getAllTickets = async (req, res) => {
     try {
@@ -217,8 +296,33 @@ export const getAllTickets = async (req, res) => {
             return res.status(403).json({ error: 'Unauthorized: Not a facilitator' });
         }
 
-        // Build query constraints
+        // Get facilitator's location
+        const facilitatorLocation = facilitatorDoc.data().location;
+
+        // Base query for tickets
+        const ticketsRef = collection(db, 'tickets');
         const constraints = [];
+
+        // Location-based filtering
+        if (facilitatorLocation) {
+            // Fetch trainees in the facilitator's location
+            const traineesRef = collection(db, 'trainees');
+            const traineeQuery = query(traineesRef, where('location', '==', facilitatorLocation));
+            const traineeSnapshot = await getDocs(traineeQuery);
+            
+            // Get trainee IDs from the location
+            const traineeIds = traineeSnapshot.docs.map(doc => doc.id);
+            
+            // If no trainees found, return empty array
+            if (traineeIds.length === 0) {
+                return res.json([]);
+            }
+
+            // Add trainee ID filter
+            constraints.push(where('traineeId', 'in', traineeIds));
+        }
+
+        // Additional optional filters from query parameters
         if (req.query.status) constraints.push(where('status', '==', req.query.status));
         if (req.query.priority) constraints.push(where('priority', '==', req.query.priority));
         if (req.query.category) constraints.push(where('category', '==', req.query.category));
@@ -231,10 +335,14 @@ export const getAllTickets = async (req, res) => {
             constraints.push(where('assignedTo', '==', null));
         }
         
+        // Add ordering
         constraints.push(orderBy('updatedAt', 'desc'));
 
-        // Get tickets
-        const ticketsRef = collection(db, 'tickets');
+        // Limit results if specified
+        const pageSize = parseInt(req.query.limit) || 50;
+        constraints.push(limit(pageSize));
+
+        // Execute query
         const q = query(ticketsRef, ...constraints);
         const ticketDocs = await getDocs(q);
 
@@ -250,7 +358,8 @@ export const getAllTickets = async (req, res) => {
                         ticket.traineeDetails = {
                             name: traineeDoc.data().name || traineeDoc.data().fullName || null,
                             surname: traineeDoc.data().surname || null,
-                            email: traineeDoc.data().email || null
+                            email: traineeDoc.data().email || null,
+                            location: traineeDoc.data().location || null
                         };
                     }
                 } catch (error) {
