@@ -5,6 +5,7 @@ import {
   getAllTraineesMonthlyStats,
   getAllTraineesProgramStats,
 } from "../controllers/superAdminReportController.js";
+import { createSuperAdmin} from "../controllers/SuperAdminController.js"
 import { verifyToken } from "../utilities/index.js";
 import {  isSuperAdmin } from "../middleware/auth.js";
 
@@ -22,6 +23,6 @@ router.get("/monthly",verifyToken,isSuperAdmin, getAllTraineesMonthlyStats);
 // Get all trainees' program statistics
 router.get("/program",verifyToken,isSuperAdmin, getAllTraineesProgramStats);
 
-
+router.post("/create", verifyToken, isSuperAdmin, createSuperAdmin);
 
 export default router;

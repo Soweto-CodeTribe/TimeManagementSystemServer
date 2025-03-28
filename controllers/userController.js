@@ -97,63 +97,9 @@ export const get_Users = async (req, res) => {
   }
 };
 
-//GET METHOD Trainee
-// export const get_Users_By_Location = async (req, res) => {
-//   try {
-//     // Check if user exists and has uid
-//     if (!req.user || !req.user.uid) {
-//       return res.status(401).json({ error: "User not authenticated" });
-//     }
 
-//     // Get facilitator's details to check location
-//     const facilitatorRef = doc(db, "facilitators", req.user.uid);
-//     const facilitatorDoc = await getDoc(facilitatorRef);
 
-//     if (!facilitatorDoc.exists()) {
-//       return res.status(403).json({ error: "Unauthorized: Not a facilitator" });
-//     }
-
-//     const facilitatorLocation = facilitatorDoc.data().location;
-//     console.log("facilitator location: ", facilitatorLocation);
-
-//     if (!facilitatorLocation) {
-//       return res.status(400).json({ error: "Facilitator location not set" });
-//     }
-
-//     // Query trainees collection with location filter
-//     const traineesRef = collection(db, "trainees");
-//     const locationQuery = query(
-//       traineesRef,
-//       where("location", "==", facilitatorLocation)
-//     );
-//     const snapshot = await getDocs(locationQuery);
-
-//     const trainees = snapshot.docs.map((doc) => ({
-//       id: doc.id,
-//       ...doc.data(),
-//     }));
-
-//     // Convert any timestamp fields to ISO strings
-//     const formattedTrainees = trainees.map((trainee) => {
-//       const formatted = { ...trainee };
-//       if (formatted.createdAt) {
-//         formatted.createdAt = formatted.createdAt.toDate().toISOString();
-//       }
-//       if (formatted.updatedAt) {
-//         formatted.updatedAt = formatted.updatedAt.toDate().toISOString();
-//       }
-//       return formatted;
-//     });
-
-//     res.status(200).json(formattedTrainees);
-//   } catch (error) {
-//     console.error("Error fetching trainees:", error);
-//     res.status(500).json({
-//       error: "Failed to fetch trainees",
-//       details: error.message,
-//     });
-//   }
-// };
+//GET Users/trainees with pagination
 export const get_Users_By_Location = async (req, res) => {
   try {
     // Check if user exists and has uid
@@ -175,10 +121,6 @@ export const get_Users_By_Location = async (req, res) => {
     if (!facilitatorLocation) {
       return res.status(400).json({ error: "Facilitator location not set" });
     }
-
-    // Pagination parameters (still needed for pagination info)
-    const pageSize = parseInt(req.query.limit) || 10;
-    const pageNum = parseInt(req.query.page) || 1;
     
     // Query trainees collection with location filter
     const traineesRef = collection(db, "trainees");
@@ -192,40 +134,14 @@ export const get_Users_By_Location = async (req, res) => {
     const totalTrainees = snapshot.docs.length;
     
     // Get all trainees data
-    const allTrainees = snapshot.docs.map((doc) => ({
+    const formattedTrainees = snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     }));
 
-    // Format all trainees data
-    const formattedTrainees = allTrainees.map((trainee) => {
-      const formatted = { ...trainee };
-      // Uncomment if you need timestamp conversion
-      // if (formatted.createdAt) {
-      //   formatted.createdAt = formatted.createdAt.toDate().toISOString();
-      // }
-      // if (formatted.updatedAt) {
-      //   formatted.updatedAt = formatted.updatedAt.toDate().toISOString();
-      // }
-      return formatted;
-    });
-
-    // Calculate which trainees would be on the current page
-    const startIndex = (pageNum - 1) * pageSize;
-    const paginatedTrainees = formattedTrainees.slice(startIndex, startIndex + pageSize);
-
     res.status(200).json({
-      // Send all trainees for frontend searching
-      allTrainees: formattedTrainees,
-      // Also send current page trainees for easy display
-      currentPageTrainees: paginatedTrainees,
-      pagination: {
-        totalTrainees,
-        totalPages: Math.ceil(totalTrainees / pageSize),
-        currentPage: pageNum,
-        pageSize,
-        hasNextPage: startIndex + pageSize < totalTrainees
-      }
+      trainees: formattedTrainees,
+      totalTrainees: totalTrainees
     });
   } catch (error) {
     console.error("Error fetching trainees:", error);

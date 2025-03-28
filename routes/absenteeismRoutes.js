@@ -18,15 +18,15 @@ router.post('/create',verifyToken, createUpload);
 router.get('/trainee/:traineeId',verifyToken, getTraineeUploads);
 
 // Get all uploads (with filtering) - only for facilitators and admins
-// router.get('/', getAllUploads);
+router.get('/all-uploads',verifyToken, getAllUploads);
 
 // Get uploads by date range (for reporting) - only for facilitators and admins
-// router.get('/report', verifyToken, checkRole(['facilitator', 'admin']), getUploadsByDateRange);
+router.get('/report', verifyToken, getUploadsByDateRange);
 
 // Update upload status (approve/reject) - only for facilitators and admins
-// router.put('/:id/status', verifyToken, checkRole(['facilitator', 'admin']), updateUploadStatus);
+router.put('update-uploads/:id/status', verifyToken,  updateUploadStatus);
 
 // Delete an upload - only for admins
-// router.delete('/:id', verifyToken, checkRole(['admin']), deleteUpload);
+router.delete('delete-uploads/:id', verifyToken, deleteUpload);
 
 export default router;

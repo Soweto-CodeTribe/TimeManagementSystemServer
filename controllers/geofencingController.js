@@ -85,17 +85,97 @@ import {
   
   
   // POST - Validate user location
+// export const validateLocation = async (req, res) => {
+//   try {
+//     const { latitude, longitude } = req.body;
+
+//     if (!latitude || !longitude) {
+//       return res.status(400).json({ error: "Missing required coordinates" });
+//     }
+
+//     const locationsRef = collection(db, "allowedLocations");
+//     const snapshot = await getDocs(locationsRef);
+//     const locations = snapshot.docs.map(doc => doc.data());
+
+//     let isWithinAllowedArea = false;
+//     let nearestLocation = null;
+//     let shortestDistance = Infinity;
+
+//     for (const location of locations) {
+//       if (!location.active) continue;
+
+//       const distance = calculateDistance(
+//         latitude,
+//         longitude,
+//         location.latitude,
+//         location.longitude
+//       );
+
+//       if (distance < shortestDistance) {
+//         shortestDistance = distance;
+//         nearestLocation = location;
+//       }
+
+//       if (distance <= location.radius) {
+//         isWithinAllowedArea = true;
+//         break;
+//       }
+//     }
+
+//     // Log the location check without userId
+//     const locationLogRef = doc(collection(db, "locationLogs"));
+//     await setDoc(locationLogRef, {
+//       latitude,
+//       longitude,
+//       timestamp: serverTimestamp(),
+//       isAllowed: isWithinAllowedArea,
+//       nearestLocationName: nearestLocation?.name,
+//       distanceToNearest: Math.round(shortestDistance)
+//     });
+
+//     if (!isWithinAllowedArea) {
+//       return res.status(403).json({
+//         allowed: false,
+//         message: "Location not within allowed area",
+//         nearestLocation: nearestLocation?.name,
+//         distance: Math.round(shortestDistance),
+//         requiredDistance: Math.round(nearestLocation?.radius)
+//       });
+//     }
+
+//     res.status(200).json({
+//       allowed: true,
+//       location: nearestLocation?.name,
+//       distance: Math.round(shortestDistance)
+//     });
+//   } catch (error) {
+//     console.error("Error validating location:", error);
+//     res.status(500).json({ 
+//       error: "Failed to validate location", 
+//       details: error.message 
+//     });
+//   }
+// };
 export const validateLocation = async (req, res) => {
   try {
-    const { latitude, longitude } = req.body;
+    // Explicitly parse and validate coordinates
+    const latitude = parseFloat(req.body.latitude);
+    const longitude = parseFloat(req.body.longitude);
 
-    if (!latitude || !longitude) {
-      return res.status(400).json({ error: "Missing required coordinates" });
+    // Additional validation to ensure valid numeric coordinates
+    if (isNaN(latitude) || isNaN(longitude)) {
+      return res.status(400).json({ 
+        error: "Invalid coordinates", 
+        message: "Latitude and longitude must be valid numbers" 
+      });
     }
 
     const locationsRef = collection(db, "allowedLocations");
     const snapshot = await getDocs(locationsRef);
-    const locations = snapshot.docs.map(doc => doc.data());
+    const locations = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
 
     let isWithinAllowedArea = false;
     let nearestLocation = null;
@@ -104,11 +184,15 @@ export const validateLocation = async (req, res) => {
     for (const location of locations) {
       if (!location.active) continue;
 
+      // Ensure location coordinates are also parsed
+      const locationLat = parseFloat(location.latitude);
+      const locationLon = parseFloat(location.longitude);
+
       const distance = calculateDistance(
         latitude,
         longitude,
-        location.latitude,
-        location.longitude
+        locationLat,
+        locationLon
       );
 
       if (distance < shortestDistance) {
@@ -122,7 +206,7 @@ export const validateLocation = async (req, res) => {
       }
     }
 
-    // Log the location check without userId
+    // Log the location check
     const locationLogRef = doc(collection(db, "locationLogs"));
     await setDoc(locationLogRef, {
       latitude,
@@ -139,7 +223,7 @@ export const validateLocation = async (req, res) => {
         message: "Location not within allowed area",
         nearestLocation: nearestLocation?.name,
         distance: Math.round(shortestDistance),
-        requiredDistance: Math.round(nearestLocation?.radius)
+        requiredDistance: nearestLocation ? Math.round(nearestLocation.radius) : null
       });
     }
 
@@ -155,8 +239,10 @@ export const validateLocation = async (req, res) => {
       details: error.message 
     });
   }
-};
-  
+};  
+
+
+
   // PUT - Update allowed location
   export const updateAllowedLocation = async (req, res) => {
     try {
