@@ -12,7 +12,7 @@ import {
   // Get all trainees' daily reports
   export const getAllTraineesDailyReport = async (req, res) => {
     try {
-      const { date, page = 1, limit = 5, search } = req.query;
+      const { date, page = 1, limit = 5, search, location } = req.query;
       const reportDate = date || new Date().toISOString().split("T")[0];
       const pageNumber = parseInt(page, 10);
       const limitNumber = parseInt(limit, 10);
@@ -32,10 +32,10 @@ import {
       let traineesQuery = query(collection(db, "trainees"));
       
       // Add location filter if req.location is defined
-      if (req.location) {
+      if (location) {
         traineesQuery = query(
           collection(db, "trainees"),
-          where("location", "==", req.location)
+          where("location", "==", location)
         );
       }
       
