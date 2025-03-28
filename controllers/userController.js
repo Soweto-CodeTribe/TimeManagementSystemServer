@@ -153,61 +153,70 @@ export const get_Users_By_Location = async (req, res) => {
 };
 
 // POST METHOD - Add a new trainee
+// POST METHOD - Add a new trainee
 export const create_user = async (req, res) => {
   try {
     // Check if user exists and has uid
-    if (!req.user || !req.user.uid) {
-      return res.status(401).json({ error: "User not authenticated" });
-    }
+    // if (!req.user || !req.user.uid) {
+    //   return res.status(401).json({ error: "User not authenticated" });
+    // }
 
-    // Check if user is a facilitator
-    const facilitatorRef = doc(db, "facilitators", req.user.uid);
-    const facilitatorDoc = await getDoc(facilitatorRef);
+    // // Check if user is a facilitator
+    // const facilitatorRef = doc(db, "facilitators", req.user.uid);
+    // const facilitatorDoc = await getDoc(facilitatorRef);
 
-    if (!facilitatorDoc.exists()) {
-      return res.status(403).json({ error: "Unauthorized: Not a facilitator" });
-    }
-    const {
-      fullName,
-      surname,
-      age,
-      gender,
-      phoneNumber,
-      idNumber,
-      email,
-      location,
-      street,
-      city,
-      role,
-      postalCode,
-      messages,
-      notifications,
-    } = req.body;
+    // if (!facilitatorDoc.exists()) {
+    //   return res.status(403).json({ error: "Unauthorized: Not a facilitator" });
+    // }
+
+    const traineeData = req.body.data ? req.body.data : req.body;
+
+    const newTrainee = {
+      traineeId: null,
+      uid: null, 
+      fullName: traineeData.fullName || traineeData.first_name || '',
+      surname: traineeData.surname || traineeData.last_name || '',
+      email: traineeData.email || '',
+      phoneNumber: traineeData.phoneNumber || traineeData.phone || '',
+      idNumber: traineeData.idNumber || traineeData.external_identifier || '',
+      
+      ...(traineeData.age && { age: traineeData.age }),
+      ...(traineeData.gender && { gender: traineeData.gender }),
+      ...(traineeData.location && { location: traineeData.location }),
+      ...(traineeData.street && { street: traineeData.street }),
+      ...(traineeData.city && { city: traineeData.city }),
+      ...(traineeData.role && { role: traineeData.role }),
+      ...(traineeData.postalCode && { postalCode: traineeData.postalCode }),
+
+      ...(traineeData.messages && { messages: traineeData.messages }),
+      ...(traineeData.notifications || traineeData.email_notifications ? 
+        { notifications: true } : 
+        { notifications: false }),
+
+      twoFactorEnabled: true,
+      createdAt: serverTimestamp(),
+    };
 
     if (
-      !fullName ||
-      !surname ||
-      !phoneNumber ||
-      !idNumber ||
-      !email ||
-      !location
+      !newTrainee.fullName ||
+      !newTrainee.surname ||
+      !newTrainee.email
     ) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    // Generate a secure password
-    const generatedPassword = generatePassword();
+    const generatedPassword = traineeData.password || generatePassword();
 
-    // Create authentication user with generated password
     const userCredential = await createUserWithEmailAndPassword(
       auth,
-      email,
+      newTrainee.email,
       generatedPassword
     );
     const uid = userCredential.user.uid;
+    newTrainee.uid = uid;
 
     // Send password reset email
-    await sendPasswordResetEmail(auth, email);
+    await sendPasswordResetEmail(auth, newTrainee.email);
 
     const counterRef = doc(db, "counters", "traineeCounter");
     let newTraineeId;
@@ -223,26 +232,8 @@ export const create_user = async (req, res) => {
       }
     });
 
-    const newTrainee = {
-      traineeId: newTraineeId,
-      uid,
-      fullName,
-      surname,
-      ...(age && { age }),
-      ...(gender && { gender }),
-      phoneNumber,
-      idNumber,
-      email,
-      ...(location && { location }),
-      ...(street && { street }),
-      ...(city && { city }),
-      ...(role && { role }),
-      ...(postalCode && { postalCode }),
-      ...(messages && { messages }),
-      ...(notifications && { notifications }),
-      twoFactorEnabled: true, // Set two-factor authentication to enabled by default
-      createdAt: serverTimestamp(),
-    };
+    // Set the traineeId
+    newTrainee.traineeId = newTraineeId;
 
     const docRef = doc(db, "trainees", newTraineeId.toString());
     await setDoc(docRef, newTrainee);
@@ -257,7 +248,7 @@ export const create_user = async (req, res) => {
     res.status(201).json({
       user: savedTrainee,
       password: generatedPassword,
-      message: `User created successfully. A password reset email has been sent to ${email}`,
+      message: `User created successfully. A password reset email has been sent to ${newTrainee.email}`,
     });
   } catch (error) {
     console.error("Error adding trainee:", error);

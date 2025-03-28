@@ -103,7 +103,6 @@ import { cleanupVerificationCodes } from "./controllers/authController.js";
 
 // Import Socket.IO authentication middleware
 import { socketAuth } from './utilities/index.js';
-import { fetchAndConvertExternalTrainees } from "./controllers/onBoardingOnlineCohort.js";
 
 // Initialize Express and create HTTP server
 const app = express();
@@ -151,8 +150,7 @@ scheduleQRCodeGeneration();
 // const timeTest = standardizeTimeFormat("07:23 pm")
 // console.log("converter time: ",timeTest)
 
- fetchAndConvertExternalTrainees();
-
+// addExternalTrainees()
 //function to auto check out trainees
 // autoCheckOutTrainees()
 scheduleAutoCheckOut();
