@@ -149,7 +149,9 @@ scheduleQRCodeGeneration();
 scheduleAutoCheckOut();
 // autoCheckOutTrainees();
 
-// Routes
+//function to auto check out trainees
+// autoCheckOutTrainees()
+
 app.use("/api/auth/", authRoutes);
 app.use("/api/add-user/", authCheck);
 app.use("/api/facilitators", facilitatorRoutes);
@@ -178,17 +180,17 @@ app.all("*", (req, res) => res.send("error 404 page not found"));
 
 // Run cleanup
 cleanupVerificationCodes()
-  .then(result => {
+  .then((result) => {
     if (result.success) {
-      console.log(`Startup cleanup: removed ${result.deletedCount} old verification codes`);
+      console.log(
+        `Startup cleanup: removed ${result.deletedCount} old verification codes`
+      );
     }
   })
-  .catch(err => console.error("Startup cleanup failed:", err));
+  .catch((err) => console.error("Startup cleanup failed:", err));
 
-// Start server
-server.listen(PORT, () => 
-  console.log(`Server connected and running on ${PORT}, http://localhost:${PORT}`)
+app.listen(PORT, () =>
+  console.log(
+    `server connected and running on ${PORT}, http://localhost:${PORT}`
+  )
 );
-
-// Export io for external use if needed
-export { io };

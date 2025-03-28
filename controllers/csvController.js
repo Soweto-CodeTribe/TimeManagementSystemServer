@@ -78,6 +78,30 @@ async function checkTraineeExists(email, idNumber) {
   return { exists: false };
 }
 
+async function checkOnlineTraineeExists(email, idNumber) {
+  const emailQuery = query(
+    collection(db, "onlineTrainees"),
+    where("email", "==", email)
+  );
+  const emailResults = await getDocs(emailQuery);
+
+  if (!emailResults.empty) {
+    return { exists: true, reason: "email" };
+  }
+
+  const idQuery = query(
+    collection(db, "onlineTrainees"),
+    where("idNumber", "==", idNumber)
+  );
+  const idResults = await getDocs(idQuery);
+
+  if (!idResults.empty) {
+    return { exists: true, reason: "idNumber" };
+  }
+
+  return { exists: false };
+}
+
 // Register a single trainee
 async function registerTrainee(trainee) {
 
@@ -188,6 +212,94 @@ async function registerTrainee(trainee) {
   }
 }
 
+async function registerOnlineTrainees(trainees) {
+  const results = {
+    successful: [],
+    failed: [],
+    skipped: [],
+  };
+
+  for (let i = 0; i < trainees.length; i += CONFIG.batchSize) {
+    const batch = trainees.slice(i, i + CONFIG.batchSize);
+
+    for (const trainee of batch) {
+      try {
+        const existsChecks = await checkOnlineTraineeExists(
+          trainee.email,
+          trainee.idNumber
+        );
+        
+        if (existsChecks.exists) {
+          results.skipped.push({ 
+            trainee, 
+            reason: `Already exists with ${existsChecks.reason}` 
+          });
+          continue;
+        }
+
+        const counterRef = doc(db, "counters", "traineeCounter");
+        let newTraineeId;
+
+        await runTransaction(db, async (transaction) => {
+          const counterDoc = await transaction.get(counterRef);
+          if (!counterDoc.exists()) {
+            newTraineeId = 1;
+            transaction.set(counterRef, { lastTraineeId: newTraineeId });
+          } else {
+            newTraineeId = counterDoc.data().lastTraineeId + 1;
+            transaction.update(counterRef, { lastTraineeId: newTraineeId });
+          }
+        });
+
+        const newOnlineTrainee = {
+          traineeId: newTraineeId,
+          fullName: trainee.fullName || trainee.first_name,
+          surname: trainee.surname || trainee.last_name,
+          email: trainee.email,
+          phoneNumber: trainee.phoneNumber || null,
+          location: trainee.location,
+          idNumber: trainee.idNumber || null,
+          street: trainee.street || null,
+          city: trainee.city || null,
+          postalCode: trainee.postalCode || null,
+          role: "online_trainee",
+          createdAt: serverTimestamp(),
+        };
+
+        const docRef = doc(db, "onlineTrainees", newTraineeId.toString());
+        await setDoc(docRef, newOnlineTrainee);
+
+        const newDoc = await getDoc(docRef);
+        const savedTrainee = { id: newTraineeId, ...newDoc.data() };
+
+        if (savedTrainee.createdAt) {
+          savedTrainee.createdAt = savedTrainee.createdAt.toDate().toISOString();
+        }
+
+        results.successful.push({
+          success: true,
+          status: "success",
+          trainee: savedTrainee,
+          message: `Online trainee created successfully`,
+        });
+      } catch (error) {
+        results.failed.push({
+          trainee,
+          error: error.message,
+        });
+      }
+    }
+
+    if (i + CONFIG.batchSize < trainees.length) {
+      await new Promise((resolve) =>
+        setTimeout(resolve, CONFIG.delayBetweenBatches)
+      );
+    }
+  }
+
+  return results;
+}
+
 // Parse CSV data from buffer
 async function parseCsvBuffer(buffer) {
   return new Promise((resolve, reject) => {
@@ -260,14 +372,14 @@ export const upload_trainee_csv = async (req, res) => {
   try {
     // Process the file using the middleware
     uploadMiddleware(req, res, async (err) => {
-      // console.log("Files:", req.file);
-      console.log("Successfully Uploaded:", req.file)
+      console.log("Successfully Uploaded:", req.file);
       if (err) {
         return res.status(400).json({
           success: false,
           message: err.message || "Error uploading file",
         });
       }
+      
       try {
         if (!req.file) {
           return res.status(400).json({
@@ -275,6 +387,7 @@ export const upload_trainee_csv = async (req, res) => {
             message: "No file uploaded. Please select a CSV file.",
           });
         }
+        
         // Parse CSV data
         const trainees = await parseCsvBuffer(req.file.buffer);
         if (trainees.length === 0) {
@@ -283,6 +396,7 @@ export const upload_trainee_csv = async (req, res) => {
             message: "No valid trainee data found in CSV",
           });
         }
+        
         // Create a response that streams updates as they happen
         res.setHeader("Content-Type", "application/json");
         res.status(202);
@@ -293,9 +407,23 @@ export const upload_trainee_csv = async (req, res) => {
             totalTrainees: trainees.length,
           }) + "\n"
         );
-        // Process trainees
-        const results = await registerTraineesInBatches(trainees);
-        // Send final summary
+        
+        // Determine processing method based on request body
+        let results;
+        if (req.body.onlineTrainee) {
+          // Process as online trainees (separate collection, no authentication)
+          results = await registerOnlineTrainees(trainees);
+        } else if (req.body.trainees) {
+          // Process as regular trainees 
+          results = await registerTraineesInBatches(trainees);
+        } else {
+          // No specific processing type specified
+          return res.status(400).json({
+            success: false,
+            message: "No processing type specified (onlineTrainee or trainees)",
+          });
+        }
+        
         res.write(
           JSON.stringify({
             success: true,
@@ -341,7 +469,6 @@ export const upload_trainee_csv = async (req, res) => {
     }
   }
 };
-
 
 // Endpoint to export trainees as CSV
 export const exportTraineesAsCSV = async (req, res) => {
