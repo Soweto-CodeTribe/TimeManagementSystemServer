@@ -60,8 +60,8 @@ router.get("/trainee-daily-report/:traineeId", verifyToken, getTraineeDailyRepor
 router.get("/monthly-stats", verifyToken, getMonthlyStats);
 router.get("/program-stats", verifyToken, getProgramStats)
 router.get("/weekly-stats", verifyToken, getWeeklyStats);
-router.get("/live-trainees", verifyToken, getLiveActivities);
-router.get("/trainees-by-location", verifyToken, getLiveActivitiesByLocation);
+router.get("/live-trainees", getLiveActivities);
+router.get("/trainees-by-location", getLiveActivitiesByLocation);
 // Program date management routes
 router.post("/set-program-date", setProgramStartDate);
 router.post("/set-bulk-program-date", setBulkProgramStartDate);
