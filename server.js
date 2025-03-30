@@ -168,7 +168,7 @@ app.use("/api/stakeholder", stakeholderRoutes);
 app.use("/api/super-admin", superAdminRoutes);
 app.use("/api/", facilitatorReport);
 app.use("/api/", absenteeismRoutes);
-app.use("/api", notificationRoutes);
+app.use("/api/", notificationRoutes);
 
 // Health check endpoint
 app.get('/', (req, res) => {
