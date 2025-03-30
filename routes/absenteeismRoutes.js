@@ -24,9 +24,9 @@ router.get('/all-uploads',verifyToken, getAllUploads);
 router.get('/report', verifyToken, getUploadsByDateRange);
 
 // Update upload status (approve/reject) - only for facilitators and admins
-router.put('update-uploads/:id/status', verifyToken,  updateUploadStatus);
+router.put('/update-uploads/:id/status', verifyToken,  updateUploadStatus);
 
 // Delete an upload - only for admins
-router.delete('delete-uploads/:id', verifyToken, deleteUpload);
+router.delete('/delete-uploads/:id', verifyToken, deleteUpload);
 
 export default router;
