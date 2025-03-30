@@ -38,7 +38,8 @@ import {
 import { verifyToken } from "../utilities/index.js";
 import { setBulkProgramStartDate, setProgramStartDate,getTraineeProgramInfo } from "../controllers/programStartDateController.js";
 import { completeStakeholderAccess } from "../middleware/auth.js";
-
+import { getLiveActivitiesByLocation } from "../controllers/adminNotifications.js";
+import { getLiveActivities } from "../controllers/adminNotifications.js";
 
 const router = express.Router();
 
@@ -59,7 +60,8 @@ router.get("/trainee-daily-report/:traineeId", verifyToken, getTraineeDailyRepor
 router.get("/monthly-stats", verifyToken, getMonthlyStats);
 router.get("/program-stats", verifyToken, getProgramStats)
 router.get("/weekly-stats", verifyToken, getWeeklyStats);
-
+router.get("/live-trainees", verifyToken, getLiveActivities);
+router.get("/trainees-by-location", verifyToken, getLiveActivitiesByLocation);
 // Program date management routes
 router.post("/set-program-date", setProgramStartDate);
 router.post("/set-bulk-program-date", setBulkProgramStartDate);
