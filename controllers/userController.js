@@ -193,7 +193,7 @@ export const create_user = async (req, res) => {
         { notifications: true } : 
         { notifications: false }),
 
-      twoFactorEnabled: true,
+      twoFactorEnabled: false,
       createdAt: serverTimestamp(),
     };
 
