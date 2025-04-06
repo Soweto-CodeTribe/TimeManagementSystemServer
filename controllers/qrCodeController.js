@@ -92,7 +92,7 @@ export function scheduleQRCodeGeneration() {
   const now = new Date();
   const next1AM = new Date(now);
 
-  next1AM.setHours(6, 30, 0, 0); // Set time to 1:00 AM
+  next1AM.setHours(18, 30, 0, 0); // Set time to 1:00 AM
   if (next1AM < now) {
     next1AM.setDate(next1AM.getDate() + 1); // Move to next day if it's past 1 AM
   }
