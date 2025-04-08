@@ -156,13 +156,7 @@ export const standardizeTimeFormat = (timeStr) => {
 
 export const checkIn = async (req, res) => {
   try {
-    const { 
-      traineeId, 
-      name, 
-      checkInTime, 
-      location, 
-      date = new Date() 
-    } = req.body;
+    const { traineeId, name, checkInTime, location, date = new Date() } = req.body;
 
     if (!traineeId || !name || !checkInTime || !location) {
       return res.status(400).json({ error: "Missing required fields" });
@@ -170,13 +164,9 @@ export const checkIn = async (req, res) => {
 
     // Standardize time format to 24-hour
     const standardizedCheckInTime = standardizeTimeFormat(checkInTime);
-    
-    // Get time status using the 24-hour format time
-    const timeStatus = checkTime(standardizedCheckInTime);
-    
-    const timestamp = Date.now();
-    const targetDate = date instanceof Date 
-      ? date.toISOString().split("T")[0] 
+
+    const targetDate = date instanceof Date
+      ? date.toISOString().split("T")[0]
       : new Date(date).toISOString().split("T")[0];
 
     // Check if target date is a working day
@@ -188,14 +178,23 @@ export const checkIn = async (req, res) => {
       });
     }
 
-    // Create or update report in Firestore
+    // Get the report document for the trainee
     const { ref: reportRef } = await getTodayReportDoc(traineeId, targetDate);
+    const reportDoc = await getDoc(reportRef);
+    const todayData = reportDoc.data()?.[targetDate] || {};
 
-    // Ensure we have a valid status before saving to Firestore
-    if (!timeStatus) {
-      throw new Error(`Failed to determine time status for: ${standardizedCheckInTime}`);
+    // Check if the user has already checked in and not checked out
+    if (todayData.checkInTime && !todayData.checkOutTime) {
+      return res.status(400).json({
+        error: "You have already checked in and have not checked out yet.",
+        checkInTime: todayData.checkInTime,
+      });
     }
 
+    // Get time status using the 24-hour format time
+    const timeStatus = checkTime(standardizedCheckInTime);
+
+    // Create or update the report in Firestore
     await setDoc(
       reportRef,
       {
@@ -220,8 +219,8 @@ export const checkIn = async (req, res) => {
       const rtdbData = rtdbSnapshot.val();
 
       if (rtdbData && rtdbData.currentDate === targetDate) {
-        return res.status(200).json({
-          message: `${rtdbData.name} you have already checked in at ${rtdbData.checkInTime}`,
+        return res.status(400).json({
+          error: `${rtdbData.name}, you have already checked in at ${rtdbData.checkInTime} and have not checked out yet.`,
           checkInTime: rtdbData.checkInTime,
         });
       }
@@ -232,7 +231,7 @@ export const checkIn = async (req, res) => {
         checkInTime: standardizedCheckInTime,
         location: location || "Unknown",
         lunchStatus: "Working",
-        lastUpdated: timestamp,
+        lastUpdated: Date.now(),
         currentDate: targetDate,
       });
 
