@@ -10,7 +10,8 @@ import {
   requestNewToken,
   getTokenRequests,
   approveTokenRequest,
-  rejectTokenRequest
+  rejectTokenRequest,
+  updateStakeholder
 } from '../controllers/stakeholderController.js';
 
 const router = express.Router();
@@ -20,6 +21,7 @@ router.post('/', verifyToken, isSuperAdmin, createStakeholder);
 router.get('/all', verifyToken, isSuperAdmin, getAllStakeholders);
 router.get('/:id', verifyToken, isSuperAdmin, getStakeholder);
 router.delete('/:id', verifyToken, isSuperAdmin, deleteStakeholder);
+router.put('/:id', verifyToken, isSuperAdmin, updateStakeholder);
 router.post('/:id/token', verifyToken, isSuperAdmin, generateNewToken);
 
 

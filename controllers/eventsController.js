@@ -11,6 +11,7 @@ import {
   where,
   updateDoc,
   arrayUnion,
+  serverTimestamp,
 } from "firebase/firestore";
 import QRCode from "qrcode";
 import { formatTime } from "./sessionController.js";
@@ -269,5 +270,62 @@ export const closeEvent = async (req, res) => {
   } catch (error) {
     console.error("Event closing error:", error);
     res.status(500).json({ error: "Failed to close event" });
+  }
+};
+
+// Updates a guest's information
+export const updateGuest = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const guestRef = doc(db, 'eventGuests', id);
+    const guestDoc = await getDoc(guestRef);
+
+    if (!guestDoc.exists()) {
+      return res.status(404).json({ error: 'Guest not found' });
+    }
+
+    const guestData = guestDoc.data();
+
+    // Map frontend fields to Firestore fields
+    const updateData = {};
+    if (req.body.fullName) updateData.fullNames = req.body.fullName;
+    if (req.body.surname) updateData.surname = req.body.surname;
+    if (req.body.idNumber) updateData.IDNumber = req.body.idNumber;
+    if (req.body.phoneNumber) updateData.cellPhone = req.body.phoneNumber;
+    if (req.body.email) updateData.email = req.body.email;
+    // Add any other direct fields
+    // Copy any other fields that are not mapped above
+    Object.keys(req.body).forEach((key) => {
+      if (!['fullName', 'surname', 'idNumber', 'phoneNumber', 'email'].includes(key)) {
+        updateData[key] = req.body[key];
+      }
+    });
+    updateData.updatedAt = serverTimestamp();
+
+    // Validate required fields are not removed
+    const requiredFields = ['fullNames', 'surname', 'email'];
+    const mergedData = { ...guestData, ...updateData };
+    for (const field of requiredFields) {
+      if (!mergedData[field]) {
+        return res.status(400).json({ error: `Missing required field after update: ${field}` });
+      }
+    }
+
+    await updateDoc(guestRef, updateData);
+
+    const updatedDoc = await getDoc(guestRef);
+    const updatedGuest = { id, ...updatedDoc.data() };
+
+    res.status(200).json({
+      success: true,
+      data: updatedGuest,
+    });
+  } catch (error) {
+    console.error('Error updating guest:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update guest',
+      error: error.message,
+    });
   }
 };

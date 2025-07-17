@@ -195,6 +195,49 @@ export const getStakeholder = async (req, res) => {
     }
 };
 
+// Updates a stakeholder's information
+export const updateStakeholder = async (req, res) => {
+    try {
+        const stakeholderRef = doc(db, stakeholdersCollection, req.params.id);
+        const stakeholderDoc = await getDoc(stakeholderRef);
+        
+        if (!stakeholderDoc.exists()) {
+            return res.status(404).json({ error: 'Stakeholder not found' });
+        }
+
+        const stakeholderData = stakeholderDoc.data();
+
+        // Only update fields present in req.body and filter out undefined
+        const updateData = Object.keys(req.body).reduce((acc, key) => {
+            if (req.body[key] !== undefined) {
+                acc[key] = req.body[key];
+            }
+            return acc;
+        }, {});
+        updateData.updatedAt = serverTimestamp();
+
+        // Validate required fields are not removed
+        const requiredFields = ['fullName', 'surname', 'email', 'role'];
+        const mergedData = { ...stakeholderData, ...updateData };
+        for (const field of requiredFields) {
+            if (!mergedData[field]) {
+                return res.status(400).json({ error: `Missing required field after update: ${field}` });
+            }
+        }
+
+        await updateDoc(stakeholderRef, updateData);
+        
+        const updatedDoc = await getDoc(stakeholderRef);
+        res.json({
+            id: updatedDoc.id,
+            ...updatedDoc.data()
+        });
+    } catch (error) {
+        console.error('Error updating stakeholder:', error);
+        res.status(400).json({ error: error.message });
+    }
+};
+
 // Deletes a stakeholder from both Firebase Auth and Firestore
 export const deleteStakeholder = async (req, res) => {
     try {

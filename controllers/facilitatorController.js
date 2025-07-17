@@ -201,7 +201,8 @@ export const getFacilitator = async (req, res) => {
 // Updates a facilitator's information
 export const updateFacilitator = async (req, res) => {
     try {
-        const facilitatorDoc = await getDoc(doc(db, facilitatorsCollection, req.params.id));
+        const facilitatorRef = doc(db, facilitatorsCollection, req.params.id);
+        const facilitatorDoc = await getDoc(facilitatorRef);
         
         if (!facilitatorDoc.exists()) {
             return res.status(404).json({ error: 'Facilitator not found' });
@@ -216,20 +217,33 @@ export const updateFacilitator = async (req, res) => {
                 where('uid', '==', req.user.uid)
             );
             const requesterSnapshot = await getDocs(requesterQuery);
-            
+            // Uncomment and adjust the following if you want to restrict editing to super admins only
             // if (!requesterSnapshot.empty && requesterSnapshot.docs[0].data().role !== 'super_admin') {
             //     return res.status(403).json({ error: 'Unauthorized to edit this profile' });
             // }
         }
 
-        const updateData = {
-            ...req.body,
-            updatedAt: serverTimestamp()
-        };
+        // Only update fields present in req.body and filter out undefined
+        const updateData = Object.keys(req.body).reduce((acc, key) => {
+            if (req.body[key] !== undefined) {
+                acc[key] = req.body[key];
+            }
+            return acc;
+        }, {});
+        updateData.updatedAt = serverTimestamp();
 
-        await updateDoc(doc(db, facilitatorsCollection, req.params.id), updateData);
+        // Validate required fields are not removed
+        const requiredFields = ['fullName', 'surname', 'email', 'role'];
+        const mergedData = { ...facilitatorData, ...updateData };
+        for (const field of requiredFields) {
+            if (!mergedData[field]) {
+                return res.status(400).json({ error: `Missing required field after update: ${field}` });
+            }
+        }
+
+        await updateDoc(facilitatorRef, updateData);
         
-        const updatedDoc = await getDoc(doc(db, facilitatorsCollection, req.params.id));
+        const updatedDoc = await getDoc(facilitatorRef);
         res.json({
             id: updatedDoc.id,
             ...updatedDoc.data()

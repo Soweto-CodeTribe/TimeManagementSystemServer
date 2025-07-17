@@ -15,7 +15,7 @@ const router = express.Router();
 router.post('/', verifyToken, isSuperAdmin, createFacilitator);
 router.get('/', verifyToken, getAllFacilitators);
 router.get('/:id', verifyToken, getFacilitator);
-router.put('/:id', verifyToken, updateFacilitator);
+router.put('/:id', verifyToken, isSuperAdmin, updateFacilitator);
 router.delete('/:id', verifyToken, isSuperAdmin, deleteFacilitator);
 router.post('/change-password', verifyToken, changePassword);
 

@@ -9,6 +9,8 @@ import {
   startAfter,
   where,
   getCountFromServer,
+  updateDoc,
+  serverTimestamp,
 } from "firebase/firestore";
 import { db } from "../config/firebaseConfig.js";
 
@@ -85,6 +87,62 @@ export const fetchSingleOnlineTrainee = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Error fetching online trainee",
+      error: error.message,
+    });
+  }
+};
+
+// Updates an online trainee's information
+export const updateOnlineTrainee = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const docRef = doc(db, "onlineTrainees", id);
+    const docSnap = await getDoc(docRef);
+
+    if (!docSnap.exists()) {
+      return res.status(404).json({
+        success: false,
+        message: "Online trainee not found",
+      });
+    }
+
+    const traineeData = docSnap.data();
+
+    // Only update fields present in req.body and filter out undefined
+    const updateData = Object.keys(req.body).reduce((acc, key) => {
+      if (req.body[key] !== undefined) {
+        acc[key] = req.body[key];
+      }
+      return acc;
+    }, {});
+    updateData.updatedAt = serverTimestamp();
+
+    // Validate required fields are not removed
+    const requiredFields = ["fullName", "surname", "email", "role"];
+    const mergedData = { ...traineeData, ...updateData };
+    for (const field of requiredFields) {
+      if (!mergedData[field]) {
+        return res.status(400).json({ success: false, message: `Missing required field after update: ${field}` });
+      }
+    }
+
+    await updateDoc(docRef, updateData);
+
+    const updatedDoc = await getDoc(docRef);
+    const updatedTrainee = {
+      id,
+      ...updatedDoc.data(),
+    };
+
+    res.status(200).json({
+      success: true,
+      data: updatedTrainee,
+    });
+  } catch (error) {
+    console.error("Error updating online trainee:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to update online trainee",
       error: error.message,
     });
   }

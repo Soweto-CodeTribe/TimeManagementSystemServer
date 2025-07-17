@@ -108,12 +108,48 @@ import { socketAuth } from './utilities/index.js';
 const app = express();
 const server = http.createServer(app);
 
-// Initialize Socket.IO
-const io = new Server(server, ()=> cors());
+// Robust Socket.IO setup with CORS for local/prod
+const io = new Server(server, {
+  cors: {
+    origin: ["http://localhost:3000", "http://localhost:6070"], // Add your frontend URLs
+    methods: ["GET", "POST"],
+    credentials: true
+  }
+});
 
+// (Optional) Authenticate sockets
+io.use((socket, next) => {
+  const token = socket.handshake.auth.token;
+  // TODO: Validate token (e.g., JWT verification)
+  // If valid, call next(); else, call next(new Error('Unauthorized'));
+  next();
+});
+
+// Handle connections and events
+io.on('connection', (socket) => {
+  console.log('A user connected:', socket.id);
+
+  // Send a notification on connect
+  socket.emit('notification', { message: 'Welcome!' });
+
+  // Listen for custom events from the client
+  socket.on('custom-event', (data) => {
+    console.log('Custom event from client:', data);
+    // Optionally, emit a response or broadcast
+  });
+
+  // Listen for status changes and broadcast to all clients
+  socket.on('status-change', (data) => {
+    io.emit('status-change', data);
+  });
+
+  socket.on('disconnect', () => {
+    console.log('User disconnected:', socket.id);
+  });
+});
 
 // Port configuration
-const PORT = process.env.PORT || 5000;
+const PORT = 6070;
 
 // Middleware
 app.use(cors());
@@ -127,26 +163,35 @@ app.use((req, res, next) => {
 });
 
 // Socket.IO middleware for authentication
-io.use(socketAuth);
+// io.use(socketAuth); // This line is now handled by the io.use() call above
 
 // Socket.IO connection handling
-io.on('connection', (socket) => {
-  console.log('New client connected:', socket.id);
+// io.on('connection', (socket) => { // This block is now handled by the io.on('connection', ...) call above
+//   console.log('New client connected:', socket.id);
   
-  // Join user to their own room for targeted notifications
-  if (socket.user && socket.user.id) {
-    socket.join(`user-${socket.user.id}`);
-    console.log(`User ${socket.user.id} joined their room`);
-  }
-  
-  socket.on('disconnect', () => {
-    console.log('Client disconnected:', socket.id);
-  });
-});
+//   // Join user to their own room for targeted notifications
+//   if (socket.user && socket.user.id) {
+//     socket.join(`user-${socket.user.id}`);
+//     console.log(`User ${socket.user.id} joined their room`);
+//   }
+
+//   // Example: send a notification on connect
+//   socket.emit('notification', { message: 'Welcome!' });
+
+//   // Example: listen for custom events
+//   socket.on('custom-event', (data) => {
+//     console.log('Received custom-event:', data);
+//     // handle event
+//   });
+
+//   socket.on('disconnect', () => {
+//     console.log('Client disconnected:', socket.id);
+//   });
+// });
 
 // Scheduled tasks
 scheduleQRCodeGeneration();
-scheduleAutoCheckOut();
+// scheduleAutoCheckOut();
 // autoCheckOutTrainees();
 
 //function to auto check out trainees
@@ -189,8 +234,6 @@ cleanupVerificationCodes()
   })
   .catch((err) => console.error("Startup cleanup failed:", err));
 
-app.listen(PORT, () =>
-  console.log(
-    `server connected and running on ${PORT}, http://localhost:${PORT}`
-  )
-);
+server.listen(PORT, () => {
+  console.log('Server and Socket.IO running on port 6070');
+});

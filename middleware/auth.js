@@ -176,3 +176,29 @@ export const verifyStakeholderInDb = async (req, res, next) => {
 // Combined middleware for complete stakeholder access (verification + database check + read-only)
 export const completeStakeholderAccess = [stakeholderAccess, verifyStakeholderInDb];
 
+// Middleware to allow only facilitators or super admins
+export const isFacilitatorOrSuperAdmin = async (req, res, next) => {
+  try {
+    if (!req.user || !req.user.uid) {
+      return res.status(401).json({ error: 'Unauthorized: No user found' });
+    }
+    // Check Firestore for user role
+    const facilitatorQuery = query(
+      collection(db, 'facilitators'),
+      where('uid', '==', req.user.uid)
+    );
+    const facilitatorSnapshot = await getDocs(facilitatorQuery);
+    if (facilitatorSnapshot.empty) {
+      return res.status(403).json({ error: 'Unauthorized: User not found' });
+    }
+    const facilitator = facilitatorSnapshot.docs[0].data();
+    if (facilitator.role === 'super_admin' || facilitator.role === 'facilitator') {
+      return next();
+    }
+    return res.status(403).json({ error: 'Unauthorized: Requires facilitator or super admin privileges' });
+  } catch (error) {
+    console.error('Facilitator or super admin check error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
