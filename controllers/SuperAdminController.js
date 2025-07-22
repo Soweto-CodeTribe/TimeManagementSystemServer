@@ -6,6 +6,8 @@ import {
 import { 
   doc, 
   setDoc, 
+  updateDoc,
+  getDoc
 } from 'firebase/firestore';
 import { auth, db, serverTimestamp } from '../config/firebaseConfig.js';
 
@@ -88,5 +90,48 @@ export const createSuperAdmin = async (req, res) => {
         res.status(400).json({ 
             error: error.message || 'Failed to create super admin account' 
         });
+    }
+};
+
+// Updates a super admin's information
+export const updateSuperAdmin = async (req, res) => {
+    try {
+        const superAdminRef = doc(db, superAdminsCollection, req.params.id);
+        const superAdminDoc = await getDoc(superAdminRef);
+        
+        if (!superAdminDoc.exists()) {
+            return res.status(404).json({ error: 'Super admin not found' });
+        }
+
+        const superAdminData = superAdminDoc.data();
+
+        // Only update fields present in req.body and filter out undefined
+        const updateData = Object.keys(req.body).reduce((acc, key) => {
+            if (req.body[key] !== undefined) {
+                acc[key] = req.body[key];
+            }
+            return acc;
+        }, {});
+        updateData.updatedAt = serverTimestamp();
+
+        // Validate required fields are not removed
+        const requiredFields = ['fullName', 'surname', 'email', 'role'];
+        const mergedData = { ...superAdminData, ...updateData };
+        for (const field of requiredFields) {
+            if (!mergedData[field]) {
+                return res.status(400).json({ error: `Missing required field after update: ${field}` });
+            }
+        }
+
+        await updateDoc(superAdminRef, updateData);
+        
+        const updatedDoc = await getDoc(superAdminRef);
+        res.json({
+            id: updatedDoc.id,
+            ...updatedDoc.data()
+        });
+    } catch (error) {
+        console.error('Error updating super admin:', error);
+        res.status(400).json({ error: error.message });
     }
 };

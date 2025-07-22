@@ -269,16 +269,25 @@ export const update_User = async (req, res) => {
       return res.status(404).json({ error: "Trainee not found" });
     }
 
-    // Only include fields that are present in req.body
-    const updateData = {
-      ...Object.keys(req.body).reduce((acc, key) => {
-        if (req.body[key] !== undefined) {
-          acc[key] = req.body[key];
-        }
-        return acc;
-      }, {}),
-      updatedAt: serverTimestamp(),
-    };
+    const traineeData = traineeDoc.data();
+
+    // Only include fields that are present in req.body and filter out undefined
+    const updateData = Object.keys(req.body).reduce((acc, key) => {
+      if (req.body[key] !== undefined) {
+        acc[key] = req.body[key];
+      }
+      return acc;
+    }, {});
+    updateData.updatedAt = serverTimestamp();
+
+    // Validate required fields are not removed
+    const requiredFields = ["fullName", "surname", "email", "role"];
+    const mergedData = { ...traineeData, ...updateData };
+    for (const field of requiredFields) {
+      if (!mergedData[field]) {
+        return res.status(400).json({ error: `Missing required field after update: ${field}` });
+      }
+    }
 
     await updateDoc(traineeRef, updateData);
 
@@ -286,9 +295,7 @@ export const update_User = async (req, res) => {
     const updatedTrainee = { id, ...updatedDoc.data() };
 
     if (updatedTrainee.updatedAt) {
-      updatedTrainee.updatedAt = updatedTrainee.updatedAt
-        .toDate()
-        .toISOString();
+      updatedTrainee.updatedAt = updatedTrainee.updatedAt.toDate().toISOString();
     }
 
     res.status(200).json(updatedTrainee);
